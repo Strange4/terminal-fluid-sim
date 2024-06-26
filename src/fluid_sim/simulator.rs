@@ -3,11 +3,11 @@ use std::time::{Duration, Instant};
 #[derive(Debug)]
 pub struct FluidSim {
     // grid aranged like cartesian, bottom left is (0,0)
-    horizontal_values: Vec<Vec<f32>>,
-    vertical_values: Vec<Vec<f32>>,
+    pub horizontal_values: Vec<Vec<f32>>,
+    pub vertical_values: Vec<Vec<f32>>,
     pub pressure_grid: Vec<Vec<f32>>,
     pub smoke_grid: Vec<Vec<f32>>,
-    pub block_grid: Vec<Vec<u8>>,
+    pub block_grid: Vec<Vec<bool>>,
     pub width: usize,
     pub height: usize,
     density: f32,
@@ -47,17 +47,17 @@ impl FluidSim {
         self.height = height;
     }
 
-    fn make_block_grid(width: usize, height: usize) -> Vec<Vec<u8>> {
-        let mut grid = vec![vec![1; height]; width];
+    fn make_block_grid(width: usize, height: usize) -> Vec<Vec<bool>> {
+        let mut grid = vec![vec![false; height]; width];
         let left_border = &mut grid[0];
-        left_border.fill(0);
+        left_border.fill(true);
         let right_border = &mut grid[width - 1];
-        right_border.fill(0);
+        right_border.fill(true);
         for i in 0..width {
             let bottom_border = &mut grid[i][0];
-            *bottom_border = 0;
+            *bottom_border = true;
             let top_border = &mut grid[i][height - 1];
-            *top_border = 0;
+            *top_border = true;
         }
         grid
     }
@@ -65,17 +65,19 @@ impl FluidSim {
     pub fn step_through(&mut self, delta: Duration) {
         self.update_velocities(delta);
         self.make_incompressible(delta);
+        // self.move_border_velocity();
         self.move_velocity(delta);
     }
 
     fn update_velocities(&mut self, delta: Duration) {
         const GRAVITY: f32 = -9.81; // in m/s
-        for i in 0..self.width {
-            for j in 0..self.height {
-                if self.block_grid[i][j] == 0 {
+        for i in 1..self.width {
+            for j in 1..self.height {
+                if self.block_grid[i][j] || self.block_grid[i][j - 1] {
                     continue;
                 }
-                self.vertical_values[i][j] += GRAVITY * delta.as_secs_f32();
+                let secs = delta.as_secs_f32();
+                self.vertical_values[i][j] += GRAVITY * secs;
             }
         }
     }
@@ -85,45 +87,62 @@ impl FluidSim {
         const ITERATIONS: usize = 100;
         self.pressure_grid.fill(vec![0.0; self.height]);
         let pressure_constant = self.density / delta.as_secs_f32();
-        for _ in 0..ITERATIONS {
-            for i in 0..self.width {
-                for j in 0..self.height {
-                    if self.block_grid[i][j] == 0 {
+        for x in 0..ITERATIONS {
+            // avoid borders
+            for i in 1..self.width - 1 {
+                for j in 1..self.height - 1 {
+                    if self.block_grid[i][j] {
                         continue;
                     }
-                    let number_of_fluids = self.number_of_fluids_around_cell(i, j);
+                    let right_is_block = !self.block_grid[i + 1][j] as u8 as f32;
+                    let top_is_block = !self.block_grid[i][j + 1] as u8 as f32;
+                    let left_is_block = !self.block_grid[i - 1][j] as u8 as f32;
+                    let bottom_is_block = !self.block_grid[i][j - 1] as u8 as f32;
+                    let number_of_fluids =
+                        right_is_block + top_is_block + left_is_block + bottom_is_block;
                     if number_of_fluids == 0.0 {
                         continue;
                     }
-                    let right_is_block = self.block_grid[i + 1][j] as f32;
-                    let top_is_block = self.block_grid[i][j + 1] as f32;
-                    let left_is_block = self.block_grid[i - 1][j] as f32;
-                    let bottom_is_block = self.block_grid[i][j - 1] as f32;
 
-                    let (left, right, bottom, top) = &mut (
-                        self.horizontal_values[i][j],
-                        self.horizontal_values[i + 1][j],
-                        self.vertical_values[i][j],
-                        self.vertical_values[i][j + 1],
-                    );
-                    let divergence = *right - *left + *top - *bottom;
-                    let correction = OVERLAX * (divergence / number_of_fluids);
-                    *left += correction * left_is_block;
-                    *right -= correction * right_is_block;
-                    *bottom += correction * bottom_is_block;
-                    *top -= correction * top_is_block;
-                    self.pressure_grid[i][j] += pressure_constant * correction;
+                    let divergence = self.horizontal_values[i + 1][j]
+                        - self.horizontal_values[i][j]
+                        + self.vertical_values[i][j + 1]
+                        - self.vertical_values[i][j];
+
+                    let correction = OVERLAX * (-divergence / number_of_fluids);
+                    self.horizontal_values[i][j] -= correction * left_is_block;
+                    self.horizontal_values[i + 1][j] += correction * right_is_block;
+                    self.vertical_values[i][j] -= correction * bottom_is_block;
+                    self.vertical_values[i][j + 1] += correction * top_is_block;
+                    let old_pressure = self.pressure_grid[i][j];
+                    let new_pressure = old_pressure + (pressure_constant * correction);
+                    // let a = f32::INFINITY;
+                    if new_pressure.is_infinite() {
+                        panic!("What the hell dude: i: {} j: {} x:{}", i, j, x);
+                    }
+                    self.pressure_grid[i][j] = new_pressure;
                 }
             }
         }
     }
 
-    fn number_of_fluids_around_cell(&self, i: usize, j: usize) -> f32 {
+    fn number_of_fluids_around_cell(&self, i: usize, j: usize) -> u8 {
         let walls = [(i + 1, j), (i, j + 1), (i - 1, j), (i, j - 1)];
         walls
             .iter()
-            .map(|&(i, j)| self.block_grid[i][j] as f32)
+            .map(|&(i, j)| self.block_grid[i][j] as u8)
             .sum()
+    }
+
+    fn move_border_velocity(&mut self) {
+        for x in 0..self.width {
+            self.horizontal_values[x][0] = self.horizontal_values[x][1];
+            self.horizontal_values[x][self.height - 1] = self.horizontal_values[x][self.height - 2];
+        }
+        for y in 0..self.height {
+            self.horizontal_values[0][y] = self.horizontal_values[1][y];
+            self.horizontal_values[self.width - 1][y] = self.horizontal_values[self.width - 2][y];
+        }
     }
 
     fn move_velocity(&mut self, delta: Duration) {
@@ -131,9 +150,9 @@ impl FluidSim {
         let mut new_vertical = self.vertical_values.clone();
         let mut new_smoke = self.smoke_grid.clone();
         let half_size = 0.5;
-        for i in 0..self.width {
-            for j in 0..self.height {
-                if self.block_grid[i][j] == 0 {
+        for i in 1..self.width - 1 {
+            for j in 1..self.height - 1 {
+                if self.block_grid[i][j] {
                     continue;
                 }
                 // for horizontal
@@ -188,8 +207,8 @@ impl FluidSim {
 
     fn sample_vector(&self, x: f32, y: f32, field: FieldType) -> f32 {
         let h = 1.0;
-        let x = x.min((self.width + 1) as f32 * h).max(h);
-        let y = y.min((self.height + 1) as f32 * h).max(h);
+        let x = x.min((self.width) as f32 * h).max(h);
+        let y = y.min((self.height) as f32 * h).max(h);
 
         let inverse_size = 1.0 / h;
         let half_size = 0.5 * h;
@@ -200,12 +219,12 @@ impl FluidSim {
             FieldType::Smoke => (&self.smoke_grid, half_size, half_size),
         };
 
-        let x_left_index = (((x - dx) * inverse_size).trunc() as usize).min(self.width + 1);
-        let x_right_index = (x_left_index + 1).min(self.width + 1);
+        let x_left_index = (((x - dx) * inverse_size).floor() as usize).min(self.width - 1);
+        let x_right_index = (x_left_index + 1).min(self.width - 1);
         let x_size_ratio = ((x - dx) - x_left_index as f32 * h) * inverse_size;
 
-        let y_bottom_index = (((y - dy) * inverse_size).trunc() as usize).min(self.height + 1);
-        let y_top_index = (y_bottom_index + 1).min(self.height + 1);
+        let y_bottom_index = (((y - dy) * inverse_size).trunc() as usize).min(self.height - 1);
+        let y_top_index = (y_bottom_index + 1).min(self.height - 1);
         let y_size_ratio = ((y - dy) - y_bottom_index as f32 * h) * inverse_size;
 
         let sx = 1.0 - x_size_ratio;
@@ -223,4 +242,97 @@ enum FieldType {
     Horizontal,
     Vertical,
     Smoke,
+}
+
+/**
+ * Testing
+ */
+
+#[cfg(test)]
+pub mod tests {
+    use std::{
+        fs::File,
+        io::{BufReader, Error, Read},
+        time::Duration,
+    };
+
+    use approx::{abs_diff_eq, assert_abs_diff_eq, AbsDiffEq};
+    use serde::Deserialize;
+
+    use super::FluidSim;
+
+    #[derive(Deserialize)]
+    pub struct FluidSimData {
+        pub horizontal_velocity: Vec<f32>,
+        pub vertical_velocity: Vec<f32>,
+        pub block_data: Vec<f32>,
+    }
+    pub fn read_file(file_name: &str) -> Result<String, Error> {
+        let file = File::open(file_name)?;
+
+        let mut reader = BufReader::new(file);
+
+        let mut contents = String::new();
+        reader.read_to_string(&mut contents)?;
+
+        Ok(contents)
+    }
+
+    pub fn read_fluid_sim_data(file_name: &str) -> Result<FluidSimData, Error> {
+        let json = read_file(file_name)?;
+
+        Ok(serde_json::from_str(&json)?)
+    }
+
+    fn vec_roughly_equal(arr: &Vec<f32>, arr2: &Vec<f32>, epsilon: f32) {
+        if arr.len() != arr2.len() {
+            panic!("The arrays aren't the same length");
+        }
+
+        for i in 0..arr.len() {
+            if !abs_diff_eq!(arr[i], arr2[i], epsilon = epsilon) {
+                panic!(
+                    "Wanted value: {:?} but got: {:?}, at index: {}",
+                    arr[i], arr2[i], i
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_velocities() -> Result<(), Error> {
+        let data = read_fluid_sim_data("velocity_data.json")?;
+        let delta = Duration::from_secs_f32(1.0 / 60.0);
+
+        let mut sim = FluidSim::new(7, 7, 1000.0);
+        sim.update_velocities(delta);
+
+        let want = &data.vertical_velocity;
+        let got: Vec<f32> = sim.vertical_values.into_iter().flatten().collect();
+
+        vec_roughly_equal(want, &got, 1e-6);
+
+        Ok(())
+    }
+
+    #[test]
+    fn block_placement() -> Result<(), Error> {
+        let data = read_fluid_sim_data("block_data.json")?;
+        let sim = FluidSim::new(7, 7, 1000.0);
+
+        let want = &data.block_data;
+        let got: Vec<f32> = sim
+            .block_grid
+            .iter()
+            .flat_map(|column| {
+                column
+                    .iter()
+                    .map(|value| !value as u8 as f32)
+                    .collect::<Vec<f32>>()
+            })
+            .collect();
+
+        assert_eq!(want, &got);
+        Ok(())
+    }
 }

@@ -23,11 +23,12 @@ impl Widget for &mut FluidSim {
                 }
             });
         });
+        let max_y = self.pressure_grid[0].len() - 1;
         for (x_index, x_pos) in (area.left()..area.right()).enumerate() {
             for (y_index, y_pos) in (area.top()..area.bottom()).enumerate() {
-                let pressure = self.pressure_grid[x_index][y_index];
-                let is_block = self.block_grid[x_index][y_index];
-                if is_block == 0 {
+                let is_block = self.block_grid[x_index][max_y - y_index];
+                let pressure = self.pressure_grid[x_index][max_y - y_index];
+                if is_block {
                     buf.get_mut(x_pos, y_pos).set_char('█').set_fg(Color::White);
                 } else if pressure != 0.0 {
                     let (ch, color) = get_linear_gradient(pressure, min_pressure, max_pressure);
@@ -41,18 +42,36 @@ impl Widget for &mut FluidSim {
 
 // gets the linear gradient of a value from 0..1 inclusive where 1 is the brightest value
 fn get_linear_gradient(value: f32, min: f32, max: f32) -> (char, Color) {
-    const CHARACTER_GRADIENT: &[u8] =
-        r#"$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\|()1{}[]?-_+~<>i!lI;:,"^`'. "#.as_bytes();
-    const LENGTH: usize = CHARACTER_GRADIENT.len();
+    // const CHARACTER_GRADIENT: &[u8] =
+    //     r#"$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\|()1{}[]?-_+~<>i!lI;:,"^`'. "#.as_bytes();
+    // const LENGTH: usize = CHARACTER_GRADIENT.len();
 
-    let normalized = (value - min) / (max - min);
+    let value = value.max(min).min(max - 1e-4);
+    let difference = max - min;
 
-    let color = if normalized < 0.5 {
-        Color::DarkGray
+    let normalized = if difference == 0.0 {
+        0.5
     } else {
-        Color::White
+        (value - min) / difference
     };
 
-    let character_index = ((LENGTH - 1) as f32 * (1.0 - normalized)).floor() as usize;
-    (CHARACTER_GRADIENT[character_index] as char, color)
+    let color_type = (normalized / 0.25).floor();
+
+    let color_value = (normalized - color_type * 0.25) / 0.25;
+
+    let (r, g, b) = match color_type as u8 {
+        0 => (0.0, color_value, 1.0),
+        1 => (0.0, 1.0, 1.0 - color_value),
+        2 => (color_value, 1.0, 0.0),
+        3 => (1.0, 1.0 - color_value, 0.0),
+        _ => (1.0, 1.0, 1.0),
+    };
+
+    let (r, g, b) = ((255.0 * r) as u8, (255.0 * g) as u8, (255.0 * b) as u8);
+
+    let color = Color::Rgb(r, g, b);
+
+    // let character_index = ((LENGTH - 1) as f32 * (1.0 - normalized)).floor() as usize;
+    // (CHARACTER_GRADIENT[character_index] as char, color)
+    ('█', color)
 }

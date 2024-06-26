@@ -28,6 +28,9 @@
 
 mod fluid_sim;
 
+#[cfg(test)]
+mod integration_tests;
+
 use std::{
     io::stdout,
     panic,
