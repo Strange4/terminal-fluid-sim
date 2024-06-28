@@ -3,7 +3,6 @@ use std::time::{Duration, Instant};
 use ratatui::{buffer::Buffer, layout::Rect, text::Text, widgets::Widget};
 
 /// A widget that displays the current frames per second
-#[derive(Debug)]
 pub struct FpsWidget {
     /// The number of elapsed frames that have passed - used to calculate the fps
     frame_count: usize,
@@ -55,7 +54,7 @@ impl Widget for &mut FpsWidget {
     fn render(self, area: Rect, buf: &mut Buffer) {
         self.calculate_fps();
         if let Some(fps) = self.fps {
-            let text = format!("{fps:.1} fps");
+            let text = format!(" {fps:.1} fps");
             Text::from(text).render(area, buf);
         }
     }

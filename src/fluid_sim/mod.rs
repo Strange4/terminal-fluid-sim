@@ -1,2 +1,2 @@
-mod render;
+mod renderer;
 pub mod simulator;

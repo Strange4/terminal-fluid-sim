@@ -1,6 +1,5 @@
 use std::time::{Duration, Instant};
 
-#[derive(Debug)]
 pub struct FluidSim {
     // grid aranged like cartesian, bottom left is (0,0)
     horizontal_values: Vec<Vec<f32>>,

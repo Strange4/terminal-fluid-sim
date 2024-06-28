@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use color_eyre::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
@@ -6,7 +6,7 @@ use ratatui::prelude::*;
 
 use crate::{fluid_sim::simulator::FluidSim, fps::FpsWidget, ui::render_app};
 
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub struct App {
     /// The current state of the app (running or quit)
     state: AppState,
@@ -16,9 +16,11 @@ pub struct App {
 
     /// the actual sim
     pub fluid_sim: FluidSim,
+
+    pub info: AppInfo,
 }
 
-#[derive(Debug, Default, PartialEq, Eq)]
+#[derive(Default, PartialEq, Eq)]
 enum AppState {
     /// The app is running
     #[default]
@@ -33,15 +35,20 @@ impl App {
     ///
     /// This is the main event loop for the app.
     pub fn run(&mut self, mut terminal: Terminal<impl Backend>) -> Result<()> {
-        // set the terminal size to the whole terminal so we can render it at least once
-
         while self.is_running() {
-            // make sure to handle the events
             self.handle_events()?;
 
             terminal.draw(|frame| {
+                // measure the simulation time and save the info
+                let start = Instant::now();
                 self.fluid_sim.next_step();
-                render_app(frame, self);
+                self.info.simulation_step_duration = start.elapsed();
+
+                let start = Instant::now();
+                let area = frame.size();
+                let buffer = frame.buffer_mut();
+                render_app(self, buffer, area);
+                self.info.rendering_duration = start.elapsed();
             })?;
         }
         Ok(())
@@ -65,19 +72,24 @@ impl App {
                 if key.kind == KeyEventKind::Press && key.code == KeyCode::Char('q') {
                     self.state = AppState::Quit;
                 };
-            } else if let Event::Resize(width, height) = event {
-                resize_sim_if_necessary(&mut self.fluid_sim, width, height)
             }
         }
         Ok(())
     }
 }
 
-fn resize_sim_if_necessary(fluid_sim: &mut FluidSim, width: u16, height: u16) {
-    let (width, height) = (width as usize, height as usize);
-    let (sim_width, sim_height) = fluid_sim.get_size();
+#[derive(Default)]
+pub struct AppInfo {
+    rendering_duration: Duration,
+    simulation_step_duration: Duration,
+}
 
-    if width != sim_width || height != sim_height {
-        fluid_sim.resize(width, height);
+impl AppInfo {
+    pub fn get_rendering_time(&self) -> Duration {
+        self.rendering_duration
+    }
+
+    pub fn get_simulation_time(&self) -> Duration {
+        self.simulation_step_duration
     }
 }
