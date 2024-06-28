@@ -11,8 +11,8 @@ pub fn render_app(app: &mut App, buf: &mut Buffer, area: Rect) {
     // make the bottom controls have height of 1 and the fill the rest
     let [main_area, controls_area] = Layout::vertical([Fill(1), Length(1)]).areas(area);
 
-    // make the info area only take 1/5th of the screen and fill the rest
-    let [info_area, sim_area] = Layout::horizontal([Ratio(1, 5), Fill(1)]).areas(main_area);
+    // make the info area take a minimu of 10 of the screen and fill the rest
+    let [info_area, sim_area] = Layout::horizontal([Length(30), Fill(1)]).areas(main_area);
 
     // background color
     Block::new().style(THEME.background).render(main_area, buf);
@@ -68,7 +68,11 @@ fn info_box_layout(info: &AppInfo, fps_widget: &mut FpsWidget, area: Rect, buf: 
     ]
     .into_iter()
     .map(|(info, name)| {
-        let info = format!(" {info:?}");
+        let info = format!(
+            " {}.{} ms ",
+            info.subsec_millis(),
+            info.subsec_micros() as u8
+        );
         let info_length = info.len();
         let info_text = Text::raw(info);
         let name_text = Text::raw(name);
@@ -105,8 +109,10 @@ fn sim_layout(sim: &mut FluidSim, area: Rect, buf: &mut Buffer) {
     sim.render(sim_area, buf);
 }
 
-fn resize_sim(fluid_sim: &mut FluidSim, width: u16, height: u16) {
-    let (width, height) = (width as usize, height as usize);
+/// resizes the sim
+/// note: the sim height is double the render height to use half blocks
+fn resize_sim(fluid_sim: &mut FluidSim, render_width: u16, render_height: u16) {
+    let (width, height) = (render_width as usize, (render_height * 2) as usize);
     let (sim_width, sim_height) = fluid_sim.get_size();
 
     if width != sim_width || height != sim_height {

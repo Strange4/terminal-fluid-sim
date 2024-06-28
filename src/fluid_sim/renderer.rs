@@ -22,26 +22,82 @@ impl Widget for &FluidSim {
 
         let (_, sim_height) = self.get_size();
 
-        for (x_index, x_pos) in (area.left()..area.right()).enumerate() {
-            for (mut y_index, y_pos) in (area.top()..area.bottom()).enumerate() {
-                // reversing the y index
-                // (0,0) is bottom left in simulation but top left on buffer to render
-                y_index = sim_height - 1 - y_index;
+        // assume that the rendering height is half the simulation height
+        // this makes it so we can have double the "pixels" vertically
+        // by using fg and bg colors
 
-                let is_block = block_grid[x_index][y_index];
-                let pressure = pressure_grid[x_index][y_index];
-                if is_block {
-                    buf.get_mut(x_pos, y_pos).set_char('█').set_fg(Color::Black);
-                } else if pressure != 0.0 {
-                    let (ch, color) = get_linear_gradient(pressure, min_pressure, max_pressure);
-                    buf.get_mut(x_pos, y_pos).set_char(ch).set_fg(color);
-                }
+        for (x_index, x_pos) in (area.left()..area.right()).enumerate() {
+            // reversing the y index since the sim origin is bottom left
+            // and the rendering orign is top left
+            let mut y_index = sim_height;
+            for y_pos in area.top()..area.bottom() {
+                y_index -= 1;
+
+                render_cell(
+                    x_index,
+                    y_index,
+                    x_pos,
+                    y_pos,
+                    block_grid,
+                    pressure_grid,
+                    max_pressure,
+                    min_pressure,
+                    '▄',
+                    buf,
+                    true,
+                );
+                y_index -= 1;
+
+                render_cell(
+                    x_index,
+                    y_index,
+                    x_pos,
+                    y_pos,
+                    block_grid,
+                    pressure_grid,
+                    max_pressure,
+                    min_pressure,
+                    '▀',
+                    buf,
+                    false,
+                );
             }
         }
     }
 }
 
-fn get_linear_gradient(value: f32, min: f32, max: f32) -> (char, Color) {
+fn render_cell(
+    x_index: usize,
+    y_index: usize,
+    x_pos: u16,
+    y_pos: u16,
+    block_grid: &Vec<Vec<bool>>,
+    pressure_grid: &Vec<Vec<f32>>,
+    max_pressure: f32,
+    min_pressure: f32,
+    ch: char,
+    buf: &mut Buffer,
+    as_fg: bool,
+) {
+    let is_block = block_grid[x_index][y_index];
+    let pressure = pressure_grid[x_index][y_index];
+
+    let cell = buf.get_mut(x_pos, y_pos).set_char(ch);
+
+    let color = if is_block {
+        Color::DarkGray
+    } else {
+        get_linear_gradient(pressure, min_pressure, max_pressure)
+    };
+
+    if as_fg {
+        cell.set_fg(color);
+    } else {
+        cell.set_bg(color);
+    }
+}
+
+fn get_linear_gradient(value: f32, min: f32, max: f32) -> Color {
     let difference = max - min;
 
     let normalized = if difference == 0.0 {
@@ -64,6 +120,5 @@ fn get_linear_gradient(value: f32, min: f32, max: f32) -> (char, Color) {
 
     let (r, g, b) = ((255.0 * r) as u8, (255.0 * g) as u8, (255.0 * b) as u8);
 
-    let color = Color::Rgb(r, g, b);
-    ('█', color)
+    Color::Rgb(r, g, b)
 }
