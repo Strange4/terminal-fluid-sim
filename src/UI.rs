@@ -1,13 +1,14 @@
+use std::time::Duration;
+
 use layout::Flex;
 use ratatui::{layout::Constraint::*, prelude::*, widgets::Block};
 
 use crate::{
     app::{App, AppInfo},
     fluid_sim::simulator::FluidSim,
-    fps::FpsWidget,
 };
 
-pub fn render_app(app: &mut App, buf: &mut Buffer, area: Rect) {
+pub fn render_app(app: &mut App, area: Rect, buf: &mut Buffer) {
     // make the bottom controls have height of 1 and the fill the rest
     let [main_area, controls_area] = Layout::vertical([Fill(1), Length(1)]).areas(area);
 
@@ -17,7 +18,7 @@ pub fn render_app(app: &mut App, buf: &mut Buffer, area: Rect) {
     // background color
     Block::new().style(THEME.background).render(main_area, buf);
 
-    info_box_layout(&app.info, &mut app.fps_widget, info_area, buf);
+    info_box_layout(&app.info, info_area, buf);
     controls_layout(controls_area, buf);
     sim_layout(&mut app.fluid_sim, sim_area, buf);
 }
@@ -36,7 +37,7 @@ fn controls_layout(area: Rect, buf: &mut Buffer) {
         .render(area, buf);
 }
 
-fn info_box_layout(info: &AppInfo, fps_widget: &mut FpsWidget, area: Rect, buf: &mut Buffer) {
+fn info_box_layout(info: &AppInfo, area: Rect, buf: &mut Buffer) {
     // the title area should be legnth 3 since it has a border
     let [title_area, info_area] = Layout::vertical([Length(3), Fill(1)]).areas(area);
 
@@ -58,34 +59,13 @@ fn info_box_layout(info: &AppInfo, fps_widget: &mut FpsWidget, area: Rect, buf: 
     info_border.render(info_area, buf);
 
     // rendering fps
-    let [fps_area, info_area] = Layout::vertical([Length(1), Fill(1)]).areas(inner_info_area);
-    fps_widget.render(fps_area, buf);
+    // let [fps_area, info_area] = Layout::vertical([Length(1), Fill(1)]).areas(inner_info_area);
+    // fps_widget.render(fps_area, buf);
 
     // rendering the rest of the info
-    let infos = [
-        (info.get_simulation_time(), "Simulation Time"),
-        (info.get_rendering_time(), "Rendering time"),
-    ]
-    .into_iter()
-    .map(|(info, name)| {
-        let info = format!(
-            " {}.{} ms ",
-            info.subsec_millis(),
-            info.subsec_micros() as u8
-        );
-        let info_length = info.len();
-        let info_text = Text::raw(info);
-        let name_text = Text::raw(name);
-        (
-            info_text,
-            Length(info_length as u16),
-            name_text,
-            Length(name.len() as u16),
-        )
-    })
-    .collect::<Vec<_>>();
+    let infos = info_as_text(info);
 
-    let info_areas = Layout::vertical(vec![Length(1); infos.len()]).split(info_area);
+    let info_areas = Layout::vertical(vec![Length(1); infos.len()]).split(inner_info_area);
 
     infos
         .into_iter()
@@ -97,6 +77,30 @@ fn info_box_layout(info: &AppInfo, fps_widget: &mut FpsWidget, area: Rect, buf: 
             info.render(left, buf);
             name.render(right, buf);
         });
+}
+
+fn info_as_text(info: &AppInfo) -> Vec<(Text, Constraint, Text, Constraint)> {
+    [
+        (
+            format_duraton(info.get_simulation_time()),
+            "Simulation time",
+        ),
+        (format_duraton(info.get_rendering_time()), "Rendering time"),
+        (format!(" {:.1} fps", info.get_fps()), "frames"),
+    ]
+    .into_iter()
+    .map(|(info, name)| {
+        let info_length = info.len();
+        let info_text = Text::raw(info);
+        let name_text = Text::raw(name);
+        (
+            info_text,
+            Length(info_length as u16),
+            name_text,
+            Length(name.len() as u16),
+        )
+    })
+    .collect::<Vec<_>>()
 }
 
 fn sim_layout(sim: &mut FluidSim, area: Rect, buf: &mut Buffer) {
@@ -118,6 +122,14 @@ fn resize_sim(fluid_sim: &mut FluidSim, render_width: u16, render_height: u16) {
     if width != sim_width || height != sim_height {
         fluid_sim.resize(width, height);
     }
+}
+
+fn format_duraton(duration: Duration) -> String {
+    format!(
+        " {}.{} ms ",
+        duration.subsec_millis(),
+        duration.subsec_micros() as u8
+    )
 }
 
 struct Theme {
