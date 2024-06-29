@@ -1,3 +1,4 @@
+use color_eyre::owo_colors::colors::css::WhiteSmoke;
 use ratatui::{buffer::Buffer, layout::Rect, style::Color, widgets::Widget};
 
 use super::simulator::FluidSim;
@@ -9,6 +10,7 @@ impl Widget for &FluidSim {
 
         let pressure_grid = self.get_pressure_grid();
         let block_grid = self.get_block_grid();
+        let smoke_grid = self.get_smoke_grid();
 
         pressure_grid.iter().for_each(|&pressure_value| {
             if pressure_value < min_pressure {
@@ -17,16 +19,6 @@ impl Widget for &FluidSim {
                 max_pressure = pressure_value
             }
         });
-
-        // pressure_grid.iter().for_each(|column| {
-        //     column.iter().for_each(|&pressure_value| {
-        //         if pressure_value < min_pressure {
-        //             min_pressure = pressure_value;
-        //         } else if pressure_value > max_pressure {
-        //             max_pressure = pressure_value
-        //         }
-        //     });
-        // });
 
         let (_, sim_height) = self.get_size();
 
@@ -47,6 +39,7 @@ impl Widget for &FluidSim {
                     x_pos,
                     y_pos,
                     block_grid,
+                    smoke_grid,
                     pressure_grid,
                     max_pressure,
                     min_pressure,
@@ -63,6 +56,7 @@ impl Widget for &FluidSim {
                     x_pos,
                     y_pos,
                     block_grid,
+                    smoke_grid,
                     pressure_grid,
                     max_pressure,
                     min_pressure,
@@ -80,6 +74,7 @@ fn render_cell(
     x_pos: u16,
     y_pos: u16,
     block_grid: &Vec<bool>,
+    smoke_grid: &Vec<f32>,
     pressure_grid: &Vec<f32>,
     max_pressure: f32,
     min_pressure: f32,
@@ -89,13 +84,22 @@ fn render_cell(
 ) {
     let is_block = block_grid[sim_index];
     let pressure = pressure_grid[sim_index];
+    let smoke = smoke_grid[sim_index];
 
     let cell = buf.get_mut(x_pos, y_pos).set_char(ch);
 
     let color = if is_block {
         Color::DarkGray
     } else {
-        get_linear_gradient(pressure, min_pressure, max_pressure)
+        let (r, g, b) = get_linear_gradient(pressure, min_pressure, max_pressure);
+        let smoke_reducer = (255.0 * smoke) as u8;
+
+        Color::Rgb(
+            r.saturating_sub(smoke_reducer),
+            g.saturating_sub(smoke_reducer),
+            b.saturating_sub(smoke_reducer),
+        )
+        // Color::Rgb(smoke_reducer, smoke_reducer, smoke_reducer)
     };
 
     if as_fg {
@@ -105,7 +109,7 @@ fn render_cell(
     }
 }
 
-fn get_linear_gradient(value: f32, min: f32, max: f32) -> Color {
+fn get_linear_gradient(value: f32, min: f32, max: f32) -> (u8, u8, u8) {
     let difference = max - min;
 
     let normalized = if difference == 0.0 {
@@ -128,5 +132,5 @@ fn get_linear_gradient(value: f32, min: f32, max: f32) -> Color {
 
     let (r, g, b) = ((255.0 * r) as u8, (255.0 * g) as u8, (255.0 * b) as u8);
 
-    Color::Rgb(r, g, b)
+    (r, g, b)
 }

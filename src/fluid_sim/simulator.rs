@@ -1,5 +1,10 @@
 use rayon::prelude::*;
-use std::time::{Duration, Instant};
+use std::{
+    hint,
+    time::{Duration, Instant},
+};
+
+use crate::ui;
 
 pub struct FluidSim {
     /// all the values are indexed by x * height + y
@@ -16,17 +21,17 @@ pub struct FluidSim {
 
 impl Default for FluidSim {
     fn default() -> Self {
-        FluidSim::new(2, 2, 1000.0)
+        FluidSim::new(10, 10, 1000.0)
     }
 }
 
 impl FluidSim {
     pub fn new(width: usize, height: usize, density: f32) -> Self {
         Self {
-            horizontal_values: vec![0.0; height * width],
+            horizontal_values: Self::make_horizontal(width, height),
             vertical_values: vec![0.0; height * width],
             pressure_grid: vec![0.0; height * width],
-            smoke_grid: vec![1.0; height * width],
+            smoke_grid: Self::make_smoke(width, height),
             block_grid: Self::make_block_grid(width, height),
             width,
             height,
@@ -50,13 +55,18 @@ impl FluidSim {
         &self.block_grid
     }
 
+    #[inline]
+    pub fn get_smoke_grid(&self) -> &Vec<f32> {
+        &self.smoke_grid
+    }
+
     pub fn resize(&mut self, width: usize, height: usize) {
         self.width = width;
         self.height = height;
-        self.horizontal_values = vec![0.0; height * width];
+        self.horizontal_values = Self::make_horizontal(width, height);
         self.vertical_values = vec![0.0; height * width];
         self.pressure_grid = vec![0.0; height * width];
-        self.smoke_grid = vec![1.0; height * width];
+        self.smoke_grid = Self::make_smoke(width, height);
         self.block_grid = Self::make_block_grid(width, height);
     }
 
@@ -72,17 +82,42 @@ impl FluidSim {
         self.move_velocity(delta);
     }
 
+    fn make_horizontal(width: usize, height: usize) -> Vec<f32> {
+        let mut values = vec![0.0; width * height];
+        for y_index in 0..height {
+            values[1 * height + y_index] = 50.0;
+        }
+        values
+    }
+
+    fn make_smoke(width: usize, height: usize) -> Vec<f32> {
+        let mut values = vec![1.0; width * height];
+        let pipe_height = height as f32 * 0.1;
+        let middle = height as f32 * 0.5;
+        let min_index = (middle - pipe_height * 0.5) as usize;
+        let max_index = (middle + pipe_height * 0.5) as usize;
+        for y_index in min_index..max_index {
+            values[y_index] = 0.0;
+        }
+        values
+    }
+
     fn make_block_grid(width: usize, height: usize) -> Vec<bool> {
         let mut grid = vec![false; height * width];
 
         // filling the left border
         for y_index in 0..height {
             grid[y_index] = true; // left border
-            grid[(width - 1) * height + y_index] = true; // right border
+                                  // grid[(width - 1) * height + y_index] = true; // right border
         }
         for x_index in 0..width {
             grid[x_index * height + 0] = true; // bottom border
+            grid[x_index * height + height - 1] = true; // top border
         }
+        let middle = (width / 2) * height + (height / 2);
+        grid[middle + 1] = true;
+        grid[middle] = true;
+        grid[middle - 1] = true;
         grid
     }
 
@@ -125,7 +160,7 @@ impl FluidSim {
 
     fn make_incompressible(&mut self, delta: Duration) {
         const OVERLAX: f32 = 1.9;
-        const ITERATIONS: usize = 80;
+        const ITERATIONS: usize = 90;
         self.pressure_grid.fill(0.0);
         let pressure_constant = self.density / delta.as_secs_f32();
 
@@ -157,12 +192,18 @@ impl FluidSim {
                     self.horizontal_values[index] -= correction * left_is_block;
                     self.horizontal_values[right] += correction * right_is_block;
 
-                    self.vertical_values[index] -= correction * bottom_is_block;
-                    self.vertical_values[top] += correction * top_is_block;
+                    let new_bottom = correction * bottom_is_block;
+                    let new_top = correction * top_is_block;
+
+                    self.vertical_values[index] -= new_bottom;
+                    self.vertical_values[top] += new_top;
                     let old_pressure = self.pressure_grid[index];
                     let new_pressure = old_pressure + (pressure_constant * correction);
                     if new_pressure.is_infinite() {
-                        panic!("What the hell dude: i: {} j: {}", i, j);
+                        panic!(
+                            "What the hell dude: i: {} j: {}, bottom: {}, top: {}",
+                            i, j, new_bottom, new_top
+                        );
                     }
                     self.pressure_grid[index] = new_pressure;
                 }
@@ -205,16 +246,18 @@ impl FluidSim {
                 *vertical_value = self.sample_vector(x_pos, y_pos, FieldType::Vertical);
 
                 // for smoke
-                let cell_vertical_value = (self.vertical_values[index]
-                    + self.vertical_values[self.calculate_index(i, j + 1)])
-                    * 0.5;
-                let cell_horizontal_value = (self.horizontal_values[index]
-                    + self.horizontal_values[self.calculate_index(i + 1, j)])
-                    * 0.5;
+                if self.calculate_index(i + 1, j) < self.horizontal_values.len() {
+                    let cell_vertical_value = (self.vertical_values[index]
+                        + self.vertical_values[self.calculate_index(i, j + 1)])
+                        * 0.5;
+                    let cell_horizontal_value = (self.horizontal_values[index]
+                        + self.horizontal_values[self.calculate_index(i + 1, j)])
+                        * 0.5;
 
-                let x_pos = i as f32 + half_size - cell_horizontal_value * delta.as_secs_f32();
-                let y_pos = j as f32 + half_size - cell_vertical_value * delta.as_secs_f32();
-                *smoke_value = self.sample_vector(x_pos, y_pos, FieldType::Smoke);
+                    x_pos = i as f32 + half_size - cell_horizontal_value * delta.as_secs_f32();
+                    y_pos = j as f32 + half_size - cell_vertical_value * delta.as_secs_f32();
+                    *smoke_value = self.sample_vector(x_pos, y_pos, FieldType::Smoke);
+                }
             });
 
         // let half_size = 0.5;
@@ -286,7 +329,8 @@ impl FluidSim {
             .into_iter()
             .map(|(i, j)| {
                 let index = self.calculate_index(i, j);
-                u[index]
+                u.get(index).unwrap_or(&0.0)
+                // u[index]
             })
             .sum();
         sum * 0.25
@@ -294,8 +338,8 @@ impl FluidSim {
 
     fn sample_vector(&self, x: f32, y: f32, field: FieldType) -> f32 {
         let h = 1.0;
-        let x = x.min((self.width) as f32).max(0.0);
-        let y = y.min((self.height) as f32).max(0.0);
+        let x = x.min((self.width) as f32).max(h);
+        let y = y.min((self.height) as f32).max(h);
 
         let inverse_size = 1.0 / h;
         let half_size = 0.5 * h;
@@ -322,10 +366,6 @@ impl FluidSim {
             + x_size_ratio * y_size_ratio * field[self.calculate_index(x_right_index, y_top_index)]
             + sx * y_size_ratio * field[self.calculate_index(x_left_index, y_top_index)];
 
-        // let sampled_value = sx * sy * field[x_left_index][y_bottom_index]
-        //     + x_size_ratio * sy * field[x_right_index][y_bottom_index]
-        //     + x_size_ratio * y_size_ratio * field[x_right_index][y_top_index]
-        //     + sx * y_size_ratio * field[x_left_index][y_top_index];
         return sampled_value;
     }
 
