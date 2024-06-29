@@ -10,15 +10,23 @@ impl Widget for &FluidSim {
         let pressure_grid = self.get_pressure_grid();
         let block_grid = self.get_block_grid();
 
-        pressure_grid.iter().for_each(|column| {
-            column.iter().for_each(|&pressure_value| {
-                if pressure_value < min_pressure {
-                    min_pressure = pressure_value;
-                } else if pressure_value > max_pressure {
-                    max_pressure = pressure_value
-                }
-            });
+        pressure_grid.iter().for_each(|&pressure_value| {
+            if pressure_value < min_pressure {
+                min_pressure = pressure_value;
+            } else if pressure_value > max_pressure {
+                max_pressure = pressure_value
+            }
         });
+
+        // pressure_grid.iter().for_each(|column| {
+        //     column.iter().for_each(|&pressure_value| {
+        //         if pressure_value < min_pressure {
+        //             min_pressure = pressure_value;
+        //         } else if pressure_value > max_pressure {
+        //             max_pressure = pressure_value
+        //         }
+        //     });
+        // });
 
         let (_, sim_height) = self.get_size();
 
@@ -32,10 +40,10 @@ impl Widget for &FluidSim {
             let mut y_index = sim_height;
             for y_pos in area.top()..area.bottom() {
                 y_index -= 1;
+                let index = self.calculate_index(x_index, y_index);
 
                 render_cell(
-                    x_index,
-                    y_index,
+                    index,
                     x_pos,
                     y_pos,
                     block_grid,
@@ -48,9 +56,10 @@ impl Widget for &FluidSim {
                 );
                 y_index -= 1;
 
+                let index = self.calculate_index(x_index, y_index);
+
                 render_cell(
-                    x_index,
-                    y_index,
+                    index,
                     x_pos,
                     y_pos,
                     block_grid,
@@ -67,20 +76,19 @@ impl Widget for &FluidSim {
 }
 
 fn render_cell(
-    x_index: usize,
-    y_index: usize,
+    sim_index: usize,
     x_pos: u16,
     y_pos: u16,
-    block_grid: &Vec<Vec<bool>>,
-    pressure_grid: &Vec<Vec<f32>>,
+    block_grid: &Vec<bool>,
+    pressure_grid: &Vec<f32>,
     max_pressure: f32,
     min_pressure: f32,
     ch: char,
     buf: &mut Buffer,
     as_fg: bool,
 ) {
-    let is_block = block_grid[x_index][y_index];
-    let pressure = pressure_grid[x_index][y_index];
+    let is_block = block_grid[sim_index];
+    let pressure = pressure_grid[sim_index];
 
     let cell = buf.get_mut(x_pos, y_pos).set_char(ch);
 

@@ -1,12 +1,13 @@
+use rayon::prelude::*;
 use std::time::{Duration, Instant};
 
 pub struct FluidSim {
-    // grid aranged like cartesian, bottom left is (0,0)
-    horizontal_values: Vec<Vec<f32>>,
-    vertical_values: Vec<Vec<f32>>,
-    pressure_grid: Vec<Vec<f32>>,
-    smoke_grid: Vec<Vec<f32>>,
-    block_grid: Vec<Vec<bool>>,
+    /// all the values are indexed by x * height + y
+    horizontal_values: Vec<f32>,
+    vertical_values: Vec<f32>,
+    pressure_grid: Vec<f32>,
+    smoke_grid: Vec<f32>,
+    block_grid: Vec<bool>,
     width: usize,
     height: usize,
     density: f32,
@@ -22,12 +23,10 @@ impl Default for FluidSim {
 impl FluidSim {
     pub fn new(width: usize, height: usize, density: f32) -> Self {
         Self {
-            // plus one since we use a staggered grid
-            // grid: Self::make_grid(width, height),
-            horizontal_values: vec![vec![0.0; height]; width],
-            vertical_values: vec![vec![0.0; height]; width],
-            pressure_grid: vec![vec![0.0; height]; width],
-            smoke_grid: vec![vec![1.0; height]; width],
+            horizontal_values: vec![0.0; height * width],
+            vertical_values: vec![0.0; height * width],
+            pressure_grid: vec![0.0; height * width],
+            smoke_grid: vec![1.0; height * width],
             block_grid: Self::make_block_grid(width, height),
             width,
             height,
@@ -42,23 +41,23 @@ impl FluidSim {
     }
 
     #[inline]
-    pub fn get_pressure_grid(&self) -> &Vec<Vec<f32>> {
+    pub fn get_pressure_grid(&self) -> &Vec<f32> {
         &self.pressure_grid
     }
 
     #[inline]
-    pub fn get_block_grid(&self) -> &Vec<Vec<bool>> {
+    pub fn get_block_grid(&self) -> &Vec<bool> {
         &self.block_grid
     }
 
     pub fn resize(&mut self, width: usize, height: usize) {
-        self.horizontal_values = vec![vec![0.0; height]; width];
-        self.vertical_values = vec![vec![0.0; height]; width];
-        self.pressure_grid = vec![vec![0.0; height]; width];
-        self.smoke_grid = vec![vec![1.0; height]; width];
-        self.block_grid = Self::make_block_grid(width, height);
         self.width = width;
         self.height = height;
+        self.horizontal_values = vec![0.0; height * width];
+        self.vertical_values = vec![0.0; height * width];
+        self.pressure_grid = vec![0.0; height * width];
+        self.smoke_grid = vec![1.0; height * width];
+        self.block_grid = Self::make_block_grid(width, height);
     }
 
     pub fn next_step(&mut self) {
@@ -67,53 +66,82 @@ impl FluidSim {
     }
 
     fn step_through(&mut self, delta: Duration) {
-        self.update_velocities(delta);
+        self.add_gravity(delta);
         self.make_incompressible(delta);
+        // self.extrapolate_velocities();
         self.move_velocity(delta);
     }
 
-    fn make_block_grid(width: usize, height: usize) -> Vec<Vec<bool>> {
-        let mut grid = vec![vec![false; height]; width];
-        let left_border = &mut grid[0];
-        left_border.fill(true);
-        let right_border = &mut grid[width - 1];
-        right_border.fill(true);
-        for i in 0..width {
-            let bottom_border = &mut grid[i][0];
-            *bottom_border = true;
+    fn make_block_grid(width: usize, height: usize) -> Vec<bool> {
+        let mut grid = vec![false; height * width];
+
+        // filling the left border
+        for y_index in 0..height {
+            grid[y_index] = true; // left border
+            grid[(width - 1) * height + y_index] = true; // right border
+        }
+        for x_index in 0..width {
+            grid[x_index * height + 0] = true; // bottom border
         }
         grid
     }
 
-    fn update_velocities(&mut self, delta: Duration) {
+    fn add_gravity(&mut self, delta: Duration) {
         const GRAVITY: f32 = -9.81; // in m/s
-        for i in 1..self.width {
-            for j in 1..self.height {
-                if self.block_grid[i][j] || self.block_grid[i][j - 1] {
-                    continue;
+
+        self.vertical_values
+            .par_iter_mut()
+            .enumerate()
+            .for_each(|(index, vertical_value)| {
+                if self.block_grid[index] || self.block_grid[index - 1] {
+                    return;
                 }
-                let secs = delta.as_secs_f32();
-                self.vertical_values[i][j] += GRAVITY * secs;
-            }
+                *vertical_value += GRAVITY * delta.as_secs_f32();
+            });
+    }
+
+    fn extrapolate_velocities(&mut self) {
+        for x_index in 0..self.width {
+            let (bottom, second_to_bottom, top, second_to_top) = (
+                self.calculate_index(x_index, 0),
+                self.calculate_index(x_index, 1),
+                self.calculate_index(x_index, self.height - 1),
+                self.calculate_index(x_index, self.height - 2),
+            );
+            self.horizontal_values[bottom] = self.horizontal_values[second_to_bottom];
+            self.horizontal_values[top] = self.horizontal_values[second_to_top];
+        }
+        for y_index in 0..self.height {
+            let (left, second_to_left, right, second_to_right) = (
+                self.calculate_index(0, y_index),
+                self.calculate_index(1, y_index),
+                self.calculate_index(self.width - 1, y_index),
+                self.calculate_index(self.width - 2, y_index),
+            );
+            self.horizontal_values[left] = self.horizontal_values[second_to_left];
+            self.horizontal_values[right] = self.horizontal_values[second_to_right];
         }
     }
 
     fn make_incompressible(&mut self, delta: Duration) {
         const OVERLAX: f32 = 1.9;
-        const ITERATIONS: usize = 100;
-        self.pressure_grid.fill(vec![0.0; self.height]);
+        const ITERATIONS: usize = 80;
+        self.pressure_grid.fill(0.0);
         let pressure_constant = self.density / delta.as_secs_f32();
-        for x in 0..ITERATIONS {
+
+        for _ in 0..ITERATIONS {
             // avoid borders
             for i in 1..self.width - 1 {
                 for j in 1..self.height - 1 {
-                    if self.block_grid[i][j] {
+                    let index = self.calculate_index(i, j);
+                    if self.block_grid[index] {
                         continue;
                     }
-                    let right_is_block = !self.block_grid[i + 1][j] as u8 as f32;
-                    let top_is_block = !self.block_grid[i][j + 1] as u8 as f32;
-                    let left_is_block = !self.block_grid[i - 1][j] as u8 as f32;
-                    let bottom_is_block = !self.block_grid[i][j - 1] as u8 as f32;
+                    let [top, right, bottom, left] = self.indexes_around(i, j);
+                    let top_is_block = !self.block_grid[top] as u8 as f32;
+                    let right_is_block = !self.block_grid[right] as u8 as f32;
+                    let bottom_is_block = !self.block_grid[bottom] as u8 as f32;
+                    let left_is_block = !self.block_grid[left] as u8 as f32;
                     let number_of_fluids =
                         right_is_block + top_is_block + left_is_block + bottom_is_block;
 
@@ -121,22 +149,22 @@ impl FluidSim {
                         continue;
                     }
 
-                    let divergence = self.horizontal_values[i + 1][j]
-                        - self.horizontal_values[i][j]
-                        + self.vertical_values[i][j + 1]
-                        - self.vertical_values[i][j];
+                    let divergence = self.horizontal_values[right] - self.horizontal_values[index]
+                        + self.vertical_values[top]
+                        - self.vertical_values[index];
 
                     let correction = OVERLAX * (-divergence / number_of_fluids);
-                    self.horizontal_values[i][j] -= correction * left_is_block;
-                    self.horizontal_values[i + 1][j] += correction * right_is_block;
-                    self.vertical_values[i][j] -= correction * bottom_is_block;
-                    self.vertical_values[i][j + 1] += correction * top_is_block;
-                    let old_pressure = self.pressure_grid[i][j];
+                    self.horizontal_values[index] -= correction * left_is_block;
+                    self.horizontal_values[right] += correction * right_is_block;
+
+                    self.vertical_values[index] -= correction * bottom_is_block;
+                    self.vertical_values[top] += correction * top_is_block;
+                    let old_pressure = self.pressure_grid[index];
                     let new_pressure = old_pressure + (pressure_constant * correction);
                     if new_pressure.is_infinite() {
-                        panic!("What the hell dude: i: {} j: {} x:{}", i, j, x);
+                        panic!("What the hell dude: i: {} j: {}", i, j);
                     }
-                    self.pressure_grid[i][j] = new_pressure;
+                    self.pressure_grid[index] = new_pressure;
                 }
             }
         }
@@ -146,45 +174,92 @@ impl FluidSim {
         let mut new_horizontal = self.horizontal_values.clone();
         let mut new_vertical = self.vertical_values.clone();
         let mut new_smoke = self.smoke_grid.clone();
+
         let half_size = 0.5;
-        for i in 1..self.width - 1 {
-            for j in 1..self.height - 1 {
-                if self.block_grid[i][j] {
-                    continue;
+        (&mut new_horizontal, &mut new_vertical, &mut new_smoke)
+            .into_par_iter()
+            .enumerate()
+            .for_each(|(index, (horizontal_value, vertical_value, smoke_value))| {
+                if self.block_grid[index] {
+                    return;
                 }
                 // for horizontal
+                let (i, j) = self.pos_from_index(index);
                 let mut x_pos = i as f32;
                 let mut y_pos = j as f32 + half_size;
-                let horizontal_value = self.horizontal_values[i][j];
                 let average_vertical_value = self.avg_vertical(i, j);
 
-                x_pos -= horizontal_value * delta.as_secs_f32();
+                x_pos -= *horizontal_value * delta.as_secs_f32();
                 y_pos -= average_vertical_value * delta.as_secs_f32();
-                new_horizontal[i][j] = self.sample_vector(x_pos, y_pos, FieldType::Horizontal);
+                *horizontal_value = self.sample_vector(x_pos, y_pos, FieldType::Horizontal);
 
                 // for vertical component
-                let mut x_pos = i as f32 + half_size;
-                let mut y_pos = j as f32;
+                x_pos = i as f32 + half_size;
+                y_pos = j as f32;
 
-                let vertical_value = self.vertical_values[i][j];
                 let average_horizontal_value = self.avg_horizontal(i, j);
 
                 x_pos -= average_horizontal_value * delta.as_secs_f32();
-                y_pos -= vertical_value * delta.as_secs_f32();
+                y_pos -= *vertical_value * delta.as_secs_f32();
 
-                new_vertical[i][j] = self.sample_vector(x_pos, y_pos, FieldType::Vertical);
+                *vertical_value = self.sample_vector(x_pos, y_pos, FieldType::Vertical);
 
                 // for smoke
-                let cell_vertical_value =
-                    (self.vertical_values[i][j] + self.vertical_values[i][j + 1]) * 0.5;
-                let cell_horizontal_value =
-                    (self.horizontal_values[i][j] + self.horizontal_values[i + 1][j]) * 0.5;
+                let cell_vertical_value = (self.vertical_values[index]
+                    + self.vertical_values[self.calculate_index(i, j + 1)])
+                    * 0.5;
+                let cell_horizontal_value = (self.horizontal_values[index]
+                    + self.horizontal_values[self.calculate_index(i + 1, j)])
+                    * 0.5;
 
                 let x_pos = i as f32 + half_size - cell_horizontal_value * delta.as_secs_f32();
                 let y_pos = j as f32 + half_size - cell_vertical_value * delta.as_secs_f32();
-                new_smoke[i][j] = self.sample_vector(x_pos, y_pos, FieldType::Smoke);
-            }
-        }
+                *smoke_value = self.sample_vector(x_pos, y_pos, FieldType::Smoke);
+            });
+
+        // let half_size = 0.5;
+        // for i in 0..self.width {
+        //     for j in 0..self.height {
+        //         let index = self.calculate_index(i, j);
+        //         if self.block_grid[index] {
+        //             continue;
+        //         }
+        //         // for horizontal
+
+        //         let mut x_pos = i as f32;
+        //         let mut y_pos = j as f32 + half_size;
+        //         let horizontal_value = self.horizontal_values[index];
+        //         let average_vertical_value = self.avg_vertical(i, j);
+
+        //         x_pos -= horizontal_value * delta.as_secs_f32();
+        //         y_pos -= average_vertical_value * delta.as_secs_f32();
+        //         new_horizontal[index] = self.sample_vector(x_pos, y_pos, FieldType::Horizontal);
+
+        //         // for vertical component
+        //         let mut x_pos = i as f32 + half_size;
+        //         let mut y_pos = j as f32;
+
+        //         let vertical_value = self.vertical_values[index];
+        //         let average_horizontal_value = self.avg_horizontal(i, j);
+
+        //         x_pos -= average_horizontal_value * delta.as_secs_f32();
+        //         y_pos -= vertical_value * delta.as_secs_f32();
+
+        //         new_vertical[index] = self.sample_vector(x_pos, y_pos, FieldType::Vertical);
+
+        //         // for smoke
+        //         let cell_vertical_value = (self.vertical_values[index]
+        //             + self.vertical_values[self.calculate_index(i, j + 1)])
+        //             * 0.5;
+        //         let cell_horizontal_value = (self.horizontal_values[index]
+        //             + self.horizontal_values[self.calculate_index(i + 1, j)])
+        //             * 0.5;
+
+        //         let x_pos = i as f32 + half_size - cell_horizontal_value * delta.as_secs_f32();
+        //         let y_pos = j as f32 + half_size - cell_vertical_value * delta.as_secs_f32();
+        //         new_smoke[index] = self.sample_vector(x_pos, y_pos, FieldType::Smoke);
+        //     }
+        // }
         self.horizontal_values = new_horizontal;
         self.vertical_values = new_vertical;
         self.smoke_grid = new_smoke;
@@ -192,13 +267,28 @@ impl FluidSim {
 
     fn avg_vertical(&self, i: usize, j: usize) -> f32 {
         let v = &self.vertical_values;
-        let sum = v[i - 1][j] + v[i - 1][j + 1] + v[i][j + 1] + v[i][j];
+        // let [top, right, bottom, left] = Self::indexes_around(i, j);
+        let sum: f32 = [(i - 1, j), (i - 1, j + 1), (i, j + 1), (i, j)]
+            .into_iter()
+            .map(|(i, j)| {
+                let index = self.calculate_index(i, j);
+                v[index]
+            })
+            .sum();
+
+        // let sum = v[i - 1][j] + v[i - 1][j + 1] + v[i][j + 1] + v[i][j];
         sum * 0.25
     }
 
     fn avg_horizontal(&self, i: usize, j: usize) -> f32 {
         let u = &self.horizontal_values;
-        let sum = u[i][j - 1] + u[i][j] + u[i + 1][j - 1] + u[i + 1][j];
+        let sum: f32 = [(i, j - 1), (i + 1, j - 1), (i + 1, j), (i, j)]
+            .into_iter()
+            .map(|(i, j)| {
+                let index = self.calculate_index(i, j);
+                u[index]
+            })
+            .sum();
         sum * 0.25
     }
 
@@ -227,11 +317,50 @@ impl FluidSim {
         let sx = 1.0 - x_size_ratio;
         let sy = 1.0 - y_size_ratio;
 
-        let sampled_value = sx * sy * field[x_left_index][y_bottom_index]
-            + x_size_ratio * sy * field[x_right_index][y_bottom_index]
-            + x_size_ratio * y_size_ratio * field[x_right_index][y_top_index]
-            + sx * y_size_ratio * field[x_left_index][y_top_index];
+        let sampled_value = sx * sy * field[self.calculate_index(x_left_index, y_bottom_index)]
+            + x_size_ratio * sy * field[self.calculate_index(x_right_index, y_bottom_index)]
+            + x_size_ratio * y_size_ratio * field[self.calculate_index(x_right_index, y_top_index)]
+            + sx * y_size_ratio * field[self.calculate_index(x_left_index, y_top_index)];
+
+        // let sampled_value = sx * sy * field[x_left_index][y_bottom_index]
+        //     + x_size_ratio * sy * field[x_right_index][y_bottom_index]
+        //     + x_size_ratio * y_size_ratio * field[x_right_index][y_top_index]
+        //     + sx * y_size_ratio * field[x_left_index][y_top_index];
         return sampled_value;
+    }
+
+    #[inline]
+    pub fn calculate_index(&self, x_index: usize, y_index: usize) -> usize {
+        (x_index * self.height) + y_index
+    }
+
+    /// calculates the indexes and returns the in the top, right, bottom, left order
+    fn indexes_around(&self, x_index: usize, y_index: usize) -> [usize; 4] {
+        [
+            (x_index, y_index + 1),
+            (x_index + 1, y_index),
+            (x_index, y_index - 1),
+            (x_index - 1, y_index),
+        ]
+        .into_iter()
+        .map(|(x, y)| self.calculate_index(x, y))
+        .collect::<Vec<usize>>()
+        .try_into()
+        .unwrap()
+    }
+
+    fn indexes_around_index(index: usize, height: usize) -> [usize; 4] {
+        let up = index + 1;
+        let right = index + height;
+        let bottom = index - 1;
+        let left = index - height;
+        [up, right, bottom, left]
+    }
+
+    fn pos_from_index(&self, index: usize) -> (usize, usize) {
+        let x = index / self.height;
+        let y = index % self.height;
+        (x, y)
     }
 }
 
