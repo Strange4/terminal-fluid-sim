@@ -1,5 +1,6 @@
-use color_eyre::owo_colors::colors::css::WhiteSmoke;
 use ratatui::{buffer::Buffer, layout::Rect, style::Color, widgets::Widget};
+
+use crate::ui::THEME;
 
 use super::simulator::FluidSim;
 
@@ -89,7 +90,7 @@ fn render_cell(
     let cell = buf.get_mut(x_pos, y_pos).set_char(ch);
 
     let color = if is_block {
-        Color::DarkGray
+        THEME.sim_blocks
     } else {
         let (r, g, b) = get_linear_gradient(pressure, min_pressure, max_pressure);
         let smoke_reducer = (255.0 * smoke) as u8;
@@ -99,7 +100,6 @@ fn render_cell(
             g.saturating_sub(smoke_reducer),
             b.saturating_sub(smoke_reducer),
         )
-        // Color::Rgb(smoke_reducer, smoke_reducer, smoke_reducer)
     };
 
     if as_fg {

@@ -1,15 +1,14 @@
 use std::time::{Duration, Instant};
 
 use color_eyre::Result;
-use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use ratatui::prelude::*;
 
-use crate::{fluid_sim::simulator::FluidSim, ui::render_app};
+use crate::{fluid_sim::simulator::FluidSim, handler::handle_events, ui::render_app};
 
 #[derive(Default)]
 pub struct App {
     /// The current state of the app (running or quit)
-    state: AppState,
+    pub state: AppState,
 
     /// the actual sim
     pub fluid_sim: FluidSim,
@@ -18,10 +17,13 @@ pub struct App {
 }
 
 #[derive(Default, PartialEq, Eq)]
-enum AppState {
+pub enum AppState {
     /// The app is running
     #[default]
     Running,
+
+    /// Editing Mode
+    Editing,
 
     /// The user has requested the app to quit
     Quit,
@@ -33,10 +35,24 @@ impl App {
     /// This is the main event loop for the app.
     pub fn run(&mut self, mut terminal: Terminal<impl Backend>) -> Result<()> {
         while self.is_running() {
-            self.handle_events()?;
+            handle_events(&mut self.state)?;
 
             terminal.draw(|frame| {
-                self.info.frame_count += 1;
+                self.update(frame);
+            })?;
+        }
+        Ok(())
+    }
+
+    const fn is_running(&self) -> bool {
+        matches!(self.state, AppState::Running | AppState::Editing)
+    }
+
+    fn update(&mut self, frame: &mut Frame) {
+        self.info.frame_count += 1;
+
+        match self.state {
+            AppState::Running => {
                 if self.info.can_update() {
                     // measure the simulation time and save the info
                     let start = Instant::now();
@@ -45,45 +61,22 @@ impl App {
 
                     // measure rendering time
                     let start = Instant::now();
-                    let area = frame.size();
-                    let buffer = frame.buffer_mut();
-                    render_app(self, area, buffer);
+                    render_app(self, frame.size(), frame.buffer_mut());
                     let render_duration = start.elapsed();
 
-                    self.info.update(sim_duration, render_duration);
+                    let (width, height) = self.fluid_sim.get_size();
+                    self.info
+                        .update(sim_duration, render_duration, width, height);
                 } else {
                     self.fluid_sim.next_step();
-
-                    let area = frame.size();
-                    let buffer: &mut Buffer = frame.buffer_mut();
-                    render_app(self, area, buffer);
+                    render_app(self, frame.size(), frame.buffer_mut());
                 }
-            })?;
-        }
-        Ok(())
-    }
-
-    const fn is_running(&self) -> bool {
-        matches!(self.state, AppState::Running)
-    }
-
-    /// Handle any events that have occurred since the last time the app was rendered.
-    ///
-    /// Currently, this only handles the q key to quit the app.
-    fn handle_events(&mut self) -> Result<()> {
-        // Ensure that the app only blocks for a period that allows the app to render at
-        // approximately 60 FPS (this doesn't account for the time to render the frame, and will
-        // also update the app immediately any time an event occurs)
-        let timeout = Duration::from_secs_f32(1.0 / 60.0);
-        if event::poll(timeout)? {
-            let event = event::read()?;
-            if let Event::Key(key) = event {
-                if key.kind == KeyEventKind::Press && key.code == KeyCode::Char('q') {
-                    self.state = AppState::Quit;
-                };
             }
+            AppState::Editing => {
+                render_app(self, frame.size(), frame.buffer_mut());
+            }
+            _ => {}
         }
-        Ok(())
     }
 }
 
@@ -93,6 +86,8 @@ pub struct AppInfo {
     last_update: Instant,
     frame_count: usize,
     fps: f32,
+    width: usize,
+    height: usize,
 }
 
 impl Default for AppInfo {
@@ -103,6 +98,8 @@ impl Default for AppInfo {
             last_update: Instant::now(),
             frame_count: 0,
             fps: 0.0,
+            width: 0,
+            height: 0,
         }
     }
 }
@@ -120,6 +117,10 @@ impl AppInfo {
         self.fps
     }
 
+    pub fn get_size(&self) -> (usize, usize) {
+        (self.width, self.height)
+    }
+
     fn can_update(&self) -> bool {
         self.last_update.elapsed() > Duration::from_secs(1)
     }
@@ -129,11 +130,19 @@ impl AppInfo {
         self.fps = self.frame_count as f32 / elapsed.as_secs_f32();
     }
 
-    fn update(&mut self, simulation_time: Duration, rendering_time: Duration) {
+    fn update(
+        &mut self,
+        simulation_time: Duration,
+        rendering_time: Duration,
+        width: usize,
+        height: usize,
+    ) {
         self.simulation_step_duration = simulation_time;
         self.rendering_duration = rendering_time;
         self.calculate_fps();
         self.last_update = Instant::now();
         self.frame_count = 0;
+        self.width = width;
+        self.height = height;
     }
 }

@@ -1,10 +1,5 @@
 use rayon::prelude::*;
-use std::{
-    hint,
-    time::{Duration, Instant},
-};
-
-use crate::ui;
+use std::time::{Duration, Instant};
 
 pub struct FluidSim {
     /// all the values are indexed by x * height + y
@@ -76,9 +71,8 @@ impl FluidSim {
     }
 
     fn step_through(&mut self, delta: Duration) {
-        self.add_gravity(delta);
+        // self.add_gravity(delta);
         self.make_incompressible(delta);
-        // self.extrapolate_velocities();
         self.move_velocity(delta);
     }
 
@@ -110,10 +104,10 @@ impl FluidSim {
             grid[y_index] = true; // left border
                                   // grid[(width - 1) * height + y_index] = true; // right border
         }
-        for x_index in 0..width {
-            grid[x_index * height + 0] = true; // bottom border
-            grid[x_index * height + height - 1] = true; // top border
-        }
+        // for x_index in 0..width {
+        //     grid[x_index * height + 0] = true; // bottom border
+        //     grid[x_index * height + height - 1] = true; // top border
+        // }
         let middle = (width / 2) * height + (height / 2);
         grid[middle + 1] = true;
         grid[middle] = true;
@@ -135,41 +129,18 @@ impl FluidSim {
             });
     }
 
-    fn extrapolate_velocities(&mut self) {
-        for x_index in 0..self.width {
-            let (bottom, second_to_bottom, top, second_to_top) = (
-                self.calculate_index(x_index, 0),
-                self.calculate_index(x_index, 1),
-                self.calculate_index(x_index, self.height - 1),
-                self.calculate_index(x_index, self.height - 2),
-            );
-            self.horizontal_values[bottom] = self.horizontal_values[second_to_bottom];
-            self.horizontal_values[top] = self.horizontal_values[second_to_top];
-        }
-        for y_index in 0..self.height {
-            let (left, second_to_left, right, second_to_right) = (
-                self.calculate_index(0, y_index),
-                self.calculate_index(1, y_index),
-                self.calculate_index(self.width - 1, y_index),
-                self.calculate_index(self.width - 2, y_index),
-            );
-            self.horizontal_values[left] = self.horizontal_values[second_to_left];
-            self.horizontal_values[right] = self.horizontal_values[second_to_right];
-        }
-    }
-
     fn make_incompressible(&mut self, delta: Duration) {
         const OVERLAX: f32 = 1.9;
-        const ITERATIONS: usize = 90;
+        const ITERATIONS: usize = 50;
         self.pressure_grid.fill(0.0);
         let pressure_constant = self.density / delta.as_secs_f32();
 
         for _ in 0..ITERATIONS {
             // avoid borders
-            for i in 1..self.width - 1 {
-                for j in 1..self.height - 1 {
+            for i in 0..self.width {
+                for j in 0..self.height {
                     let index = self.calculate_index(i, j);
-                    if self.block_grid[index] {
+                    if self.block_grid[index] || self.index_is_border(index) {
                         continue;
                     }
                     let [top, right, bottom, left] = self.indexes_around(i, j);
@@ -197,15 +168,9 @@ impl FluidSim {
 
                     self.vertical_values[index] -= new_bottom;
                     self.vertical_values[top] += new_top;
-                    let old_pressure = self.pressure_grid[index];
-                    let new_pressure = old_pressure + (pressure_constant * correction);
-                    if new_pressure.is_infinite() {
-                        panic!(
-                            "What the hell dude: i: {} j: {}, bottom: {}, top: {}",
-                            i, j, new_bottom, new_top
-                        );
-                    }
-                    self.pressure_grid[index] = new_pressure;
+                    // let old_pressure = self.pressure_grid[index];
+                    // let new_pressure = old_pressure + (pressure_constant * correction);
+                    self.pressure_grid[index] += pressure_constant * correction;
                 }
             }
         }
@@ -221,7 +186,7 @@ impl FluidSim {
             .into_par_iter()
             .enumerate()
             .for_each(|(index, (horizontal_value, vertical_value, smoke_value))| {
-                if self.block_grid[index] {
+                if self.block_grid[index] || self.index_is_border(index) {
                     return;
                 }
                 // for horizontal
@@ -259,50 +224,6 @@ impl FluidSim {
                     *smoke_value = self.sample_vector(x_pos, y_pos, FieldType::Smoke);
                 }
             });
-
-        // let half_size = 0.5;
-        // for i in 0..self.width {
-        //     for j in 0..self.height {
-        //         let index = self.calculate_index(i, j);
-        //         if self.block_grid[index] {
-        //             continue;
-        //         }
-        //         // for horizontal
-
-        //         let mut x_pos = i as f32;
-        //         let mut y_pos = j as f32 + half_size;
-        //         let horizontal_value = self.horizontal_values[index];
-        //         let average_vertical_value = self.avg_vertical(i, j);
-
-        //         x_pos -= horizontal_value * delta.as_secs_f32();
-        //         y_pos -= average_vertical_value * delta.as_secs_f32();
-        //         new_horizontal[index] = self.sample_vector(x_pos, y_pos, FieldType::Horizontal);
-
-        //         // for vertical component
-        //         let mut x_pos = i as f32 + half_size;
-        //         let mut y_pos = j as f32;
-
-        //         let vertical_value = self.vertical_values[index];
-        //         let average_horizontal_value = self.avg_horizontal(i, j);
-
-        //         x_pos -= average_horizontal_value * delta.as_secs_f32();
-        //         y_pos -= vertical_value * delta.as_secs_f32();
-
-        //         new_vertical[index] = self.sample_vector(x_pos, y_pos, FieldType::Vertical);
-
-        //         // for smoke
-        //         let cell_vertical_value = (self.vertical_values[index]
-        //             + self.vertical_values[self.calculate_index(i, j + 1)])
-        //             * 0.5;
-        //         let cell_horizontal_value = (self.horizontal_values[index]
-        //             + self.horizontal_values[self.calculate_index(i + 1, j)])
-        //             * 0.5;
-
-        //         let x_pos = i as f32 + half_size - cell_horizontal_value * delta.as_secs_f32();
-        //         let y_pos = j as f32 + half_size - cell_vertical_value * delta.as_secs_f32();
-        //         new_smoke[index] = self.sample_vector(x_pos, y_pos, FieldType::Smoke);
-        //     }
-        // }
         self.horizontal_values = new_horizontal;
         self.vertical_values = new_vertical;
         self.smoke_grid = new_smoke;
@@ -318,8 +239,6 @@ impl FluidSim {
                 v[index]
             })
             .sum();
-
-        // let sum = v[i - 1][j] + v[i - 1][j + 1] + v[i][j + 1] + v[i][j];
         sum * 0.25
     }
 
@@ -329,8 +248,7 @@ impl FluidSim {
             .into_iter()
             .map(|(i, j)| {
                 let index = self.calculate_index(i, j);
-                u.get(index).unwrap_or(&0.0)
-                // u[index]
+                u[index]
             })
             .sum();
         sum * 0.25
@@ -397,10 +315,24 @@ impl FluidSim {
         [up, right, bottom, left]
     }
 
+    #[inline]
     fn pos_from_index(&self, index: usize) -> (usize, usize) {
         let x = index / self.height;
         let y = index % self.height;
         (x, y)
+    }
+
+    #[inline]
+    fn index_is_border(&self, index: usize) -> bool {
+        let is_left_border = index < self.height;
+        let is_right_border = index >= (self.width - 1) * self.height;
+
+        let remainder = index % self.height;
+        let is_top_border = remainder == self.height - 1;
+        let is_bottom_border = remainder == 0;
+
+        // return true if any are true
+        is_left_border || is_right_border || is_top_border || is_bottom_border
     }
 }
 
