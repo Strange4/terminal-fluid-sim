@@ -89,20 +89,24 @@ impl FluidSim {
     fn make_horizontal(width: usize, height: usize) -> Vec<f32> {
         let mut values = vec![0.0; width * height];
         for y_index in 0..height {
-            values[1 * height + y_index] = 50.0;
+            values[height + y_index] = 50.0;
         }
         values
     }
 
+    /// sets the smoke on the left to visualize the velocities
     fn make_smoke(width: usize, height: usize) -> Vec<f32> {
         let mut values = vec![1.0; width * height];
         let pipe_height = height as f32 * 0.1;
         let middle = height as f32 * 0.5;
         let min_index = (middle - pipe_height * 0.5) as usize;
         let max_index = (middle + pipe_height * 0.5) as usize;
-        for y_index in min_index..max_index {
-            values[y_index] = 0.0;
-        }
+
+        values
+            .iter_mut()
+            .take(max_index)
+            .skip(min_index)
+            .for_each(|smoke_cell| *smoke_cell = 0.0);
         values
     }
 
@@ -110,10 +114,8 @@ impl FluidSim {
         let mut grid = vec![false; height * width];
 
         // filling the left border
-        for y_index in 0..height {
-            grid[y_index] = true; // left border
-                                  // grid[(width - 1) * height + y_index] = true; // right border
-        }
+        grid.iter_mut().take(height).for_each(|cell| *cell = true);
+
         // for x_index in 0..width {
         //     grid[x_index * height + 0] = true; // bottom border
         //     grid[x_index * height + height - 1] = true; // top border
@@ -290,12 +292,10 @@ impl FluidSim {
         let sx = 1.0 - x_size_ratio;
         let sy = 1.0 - y_size_ratio;
 
-        let sampled_value = sx * sy * field[self.calculate_index(x_left_index, y_bottom_index)]
+        sx * sy * field[self.calculate_index(x_left_index, y_bottom_index)]
             + x_size_ratio * sy * field[self.calculate_index(x_right_index, y_bottom_index)]
             + x_size_ratio * y_size_ratio * field[self.calculate_index(x_right_index, y_top_index)]
-            + sx * y_size_ratio * field[self.calculate_index(x_left_index, y_top_index)];
-
-        return sampled_value;
+            + sx * y_size_ratio * field[self.calculate_index(x_left_index, y_top_index)]
     }
 
     #[inline]

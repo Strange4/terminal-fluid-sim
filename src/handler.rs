@@ -55,8 +55,8 @@ fn handle_mouse_event(mouse_event: MouseEvent, app: &mut App) {
         (mouse_event.column - sim_area.x) as usize,
         app.fluid_sim.get_size().1 - mouse_event.row as usize - sim_area.y as usize,
     );
-    match mouse_event.kind {
-        MouseEventKind::Down(button) => match button {
+    if let MouseEventKind::Down(button) = mouse_event.kind {
+        match button {
             MouseButton::Left => {
                 app.fluid_sim.set_block(x, y);
             }
@@ -64,8 +64,7 @@ fn handle_mouse_event(mouse_event: MouseEvent, app: &mut App) {
                 app.fluid_sim.unset_block(x, y);
             }
             _ => {}
-        },
-        _ => {}
+        }
     }
 }
 

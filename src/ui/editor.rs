@@ -1,19 +1,11 @@
-use color_eyre::owo_colors::OwoColorize;
-use crossterm::{
-    event::{MouseButton, MouseEvent, MouseEventKind},
-    style::Stylize,
-};
 use ratatui::{
     buffer::Buffer,
-    layout::{Alignment, Rect},
-    style::{Color, Modifier},
+    layout::Rect,
+    style::Modifier,
     widgets::{Block, Paragraph, Widget, Wrap},
 };
 
-use crate::{
-    app::{App, AppState},
-    fluid_sim::simulator::FluidSim,
-};
+use crate::{app::App, fluid_sim::simulator::FluidSim};
 
 use super::THEME;
 

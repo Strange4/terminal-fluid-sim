@@ -49,7 +49,6 @@ impl Widget for &FluidSim {
                     true,
                 );
                 y_index -= 1;
-
                 let index = self.calculate_index(x_index, y_index);
 
                 render_cell(
@@ -73,9 +72,9 @@ fn render_cell(
     sim_index: usize,
     x_pos: u16,
     y_pos: u16,
-    block_grid: &Vec<bool>,
-    smoke_grid: &Vec<f32>,
-    pressure_grid: &Vec<f32>,
+    block_grid: &[bool],
+    smoke_grid: &[f32],
+    pressure_grid: &[f32],
     max_pressure: f32,
     min_pressure: f32,
     buf: &mut Buffer,
