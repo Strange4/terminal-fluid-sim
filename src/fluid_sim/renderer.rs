@@ -46,7 +46,7 @@ impl Widget for &FluidSim {
                     max_pressure,
                     min_pressure,
                     buf,
-                    true,
+                    false,
                 );
                 y_index -= 1;
                 let index = self.calculate_index(x_index, y_index);
@@ -61,7 +61,7 @@ impl Widget for &FluidSim {
                     max_pressure,
                     min_pressure,
                     buf,
-                    false,
+                    true,
                 );
             }
         }
@@ -82,7 +82,7 @@ fn render_cell(
 ) {
     let is_block = block_grid[sim_index];
 
-    let cell = buf.get_mut(x_pos, y_pos).set_char('▀');
+    let cell = buf.get_mut(x_pos, y_pos).set_char('▄');
 
     let color = if is_block {
         THEME.sim_blocks

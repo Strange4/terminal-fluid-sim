@@ -16,6 +16,7 @@ use ratatui::prelude::*;
 
 fn main() -> Result<()> {
     install_error_hooks()?;
+    build_logger();
     let terminal = init_terminal()?;
     App::default().run(terminal)?;
     restore_terminal()?;
@@ -56,4 +57,8 @@ fn restore_terminal() -> Result<()> {
     stdout().execute(LeaveAlternateScreen)?;
     stdout().execute(DisableMouseCapture)?;
     Ok(())
+}
+
+fn build_logger() {
+    log4rs::init_file("log4rs.yaml", Default::default()).unwrap();
 }

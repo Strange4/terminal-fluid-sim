@@ -1,4 +1,4 @@
-mod editor;
+pub mod editor;
 mod layout;
 mod simulation;
 mod theme;

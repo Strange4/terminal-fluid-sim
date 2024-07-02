@@ -16,6 +16,6 @@ pub const THEME: Theme = Theme {
     borders: Style::new().fg(Color::Gray),
     title: Style::new().add_modifier(Modifier::BOLD),
     controls: Style::new().bg(Color::White).fg(Color::Black),
-    sim_blocks: Color::Red,
+    sim_blocks: Color::White,
     tab_text: Style::new().fg(Color::White),
 };

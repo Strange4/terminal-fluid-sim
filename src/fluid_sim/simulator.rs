@@ -115,12 +115,6 @@ impl FluidSim {
 
         // filling the left border
         grid.iter_mut().take(height).for_each(|cell| *cell = true);
-
-        // for x_index in 0..width {
-        //     grid[x_index * height + 0] = true; // bottom border
-        //     grid[x_index * height + height - 1] = true; // top border
-        // }
-        // let middle = (width / 2) * height + (height / 2);
         let middle = Self::calculate_index_with_height(height, width / 2, height / 2);
         grid[middle + 1] = true;
         grid[middle] = true;
@@ -181,8 +175,6 @@ impl FluidSim {
 
                     self.vertical_values[index] -= new_bottom;
                     self.vertical_values[top] += new_top;
-                    // let old_pressure = self.pressure_grid[index];
-                    // let new_pressure = old_pressure + (pressure_constant * correction);
                     self.pressure_grid[index] += pressure_constant * correction;
                 }
             }
@@ -244,7 +236,6 @@ impl FluidSim {
 
     fn avg_vertical(&self, i: usize, j: usize) -> f32 {
         let v = &self.vertical_values;
-        // let [top, right, bottom, left] = Self::indexes_around(i, j);
         let sum: f32 = [(i - 1, j), (i - 1, j + 1), (i, j + 1), (i, j)]
             .into_iter()
             .map(|(i, j)| {
@@ -321,14 +312,6 @@ impl FluidSim {
         .collect::<Vec<usize>>()
         .try_into()
         .unwrap()
-    }
-
-    fn indexes_around_index(index: usize, height: usize) -> [usize; 4] {
-        let up = index + 1;
-        let right = index + height;
-        let bottom = index - 1;
-        let left = index - height;
-        [up, right, bottom, left]
     }
 
     #[inline]

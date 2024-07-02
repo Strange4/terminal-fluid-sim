@@ -13,7 +13,6 @@ pub fn render_app(app: &mut App, area: Rect, buf: &mut Buffer) -> Rect {
 
     let border = Block::bordered().style(THEME.borders);
     let inner_sim_area = border.inner(sim_area);
-    // let inner_sim_area = sim_area;
 
     match app.state {
         AppState::Running => {

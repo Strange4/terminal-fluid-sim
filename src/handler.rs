@@ -1,6 +1,10 @@
 use std::time::Duration;
 
-use crate::app::{App, AppState};
+use crate::{
+    app::{App, AppState},
+    fluid_sim::simulator::FluidSim,
+    ui::editor::editor_area_to_sim_coordinates,
+};
 use color_eyre::Result;
 use crossterm::event::{
     self, Event, KeyCode, KeyEventKind, MouseButton, MouseEvent, MouseEventKind,
@@ -8,8 +12,6 @@ use crossterm::event::{
 use ratatui::layout::Rect;
 
 /// Handle any events that have occurred since the last time the app was rendered.
-///
-/// Currently, this only handles the q key to quit the app.
 pub fn handle_events(app: &mut App) -> Result<()> {
     // Ensure that the app only blocks for a period that allows the app to render at
     // approximately 60 FPS (this doesn't account for the time to render the frame, and will
@@ -51,17 +53,34 @@ fn handle_mouse_event(mouse_event: MouseEvent, app: &mut App) {
 
     app.editor_info.last_mouse_pos = Some((mouse_event.column, mouse_event.row));
 
-    let (x, y) = (
-        (mouse_event.column - sim_area.x) as usize,
-        app.fluid_sim.get_size().1 - mouse_event.row as usize - sim_area.y as usize,
-    );
     if let MouseEventKind::Down(button) = mouse_event.kind {
+        let (x, y) =
+            editor_area_to_sim_coordinates((mouse_event.column, mouse_event.row), sim_area);
+
         match button {
             MouseButton::Left => {
-                app.fluid_sim.set_block(x, y);
+                let down_index =
+                    FluidSim::calculate_index_with_height((sim_area.height * 2) as usize, x, y);
+
+                let down_is_block = app.fluid_sim.get_block_grid()[down_index];
+                // set down block first
+                if !down_is_block {
+                    app.fluid_sim.set_block(x, y);
+                } else {
+                    app.fluid_sim.set_block(x, y + 1);
+                }
             }
             MouseButton::Right => {
-                app.fluid_sim.unset_block(x, y);
+                let up_index =
+                    FluidSim::calculate_index_with_height((sim_area.height * 2) as usize, x, y + 1);
+
+                let up_is_block = app.fluid_sim.get_block_grid()[up_index];
+                // unset top block first
+                if up_is_block {
+                    app.fluid_sim.unset_block(x, y + 1);
+                } else {
+                    app.fluid_sim.unset_block(x, y);
+                }
             }
             _ => {}
         }
