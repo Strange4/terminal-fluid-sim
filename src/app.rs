@@ -14,6 +14,8 @@ pub struct App {
     pub fluid_sim: FluidSim,
 
     pub info: AppInfo,
+
+    pub editor_info: EditorInfo,
 }
 
 #[derive(Default, PartialEq, Eq)]
@@ -35,8 +37,7 @@ impl App {
     /// This is the main event loop for the app.
     pub fn run(&mut self, mut terminal: Terminal<impl Backend>) -> Result<()> {
         while self.is_running() {
-            handle_events(&mut self.state)?;
-
+            handle_events(self)?;
             terminal.draw(|frame| {
                 self.update(frame);
             })?;
@@ -54,29 +55,34 @@ impl App {
         match self.state {
             AppState::Running => {
                 if self.info.can_update() {
-                    // measure the simulation time and save the info
-                    let start = Instant::now();
-                    self.fluid_sim.next_step();
-                    let sim_duration = start.elapsed();
-
-                    // measure rendering time
-                    let start = Instant::now();
-                    render_app(self, frame.size(), frame.buffer_mut());
-                    let render_duration = start.elapsed();
-
-                    let (width, height) = self.fluid_sim.get_size();
-                    self.info
-                        .update(sim_duration, render_duration, width, height);
+                    self.measure_and_update(frame);
                 } else {
                     self.fluid_sim.next_step();
-                    render_app(self, frame.size(), frame.buffer_mut());
+                    self.editor_info.editor_area =
+                        render_app(self, frame.size(), frame.buffer_mut());
                 }
             }
             AppState::Editing => {
-                render_app(self, frame.size(), frame.buffer_mut());
+                self.editor_info.editor_area = render_app(self, frame.size(), frame.buffer_mut());
             }
             _ => {}
         }
+    }
+
+    fn measure_and_update(&mut self, frame: &mut Frame) {
+        // measure the simulation time and save the info
+        let start = Instant::now();
+        self.fluid_sim.next_step();
+        let sim_duration = start.elapsed();
+
+        // measure rendering time
+        let start = Instant::now();
+        self.editor_info.editor_area = render_app(self, frame.size(), frame.buffer_mut());
+        let render_duration = start.elapsed();
+
+        let (width, height) = self.fluid_sim.get_size();
+        self.info
+            .update(sim_duration, render_duration, width, height);
     }
 }
 
@@ -145,4 +151,10 @@ impl AppInfo {
         self.width = width;
         self.height = height;
     }
+}
+
+#[derive(Default)]
+pub struct EditorInfo {
+    pub last_mouse_pos: Option<(u16, u16)>,
+    pub editor_area: Rect,
 }

@@ -1,4 +1,4 @@
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Color, Modifier, Style, Stylize};
 
 pub struct Theme {
     pub background: Style,
@@ -7,6 +7,7 @@ pub struct Theme {
     pub title: Style,
     pub controls: Style,
     pub sim_blocks: Color,
+    pub tab_text: Style,
 }
 
 pub const THEME: Theme = Theme {
@@ -15,5 +16,6 @@ pub const THEME: Theme = Theme {
     borders: Style::new().fg(Color::Gray),
     title: Style::new().add_modifier(Modifier::BOLD),
     controls: Style::new().bg(Color::White).fg(Color::Black),
-    sim_blocks: Color::White,
+    sim_blocks: Color::Red,
+    tab_text: Style::new().fg(Color::White),
 };

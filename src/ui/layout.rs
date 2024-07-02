@@ -3,24 +3,36 @@ use ratatui::{layout::Constraint::*, prelude::*, widgets::Block};
 use crate::app::{App, AppState};
 
 use super::{
-    editor::render_editor_info,
+    editor::{render_editor, render_editor_info},
     simulation::{render_sim, render_sim_info},
     theme::THEME,
 };
 
-pub fn render_app(app: &mut App, area: Rect, buf: &mut Buffer) {
+pub fn render_app(app: &mut App, area: Rect, buf: &mut Buffer) -> Rect {
     let [info_area, sim_area] = set_layout(area, buf);
+
+    let border = Block::bordered().style(THEME.borders);
+    let inner_sim_area = border.inner(sim_area);
+    // let inner_sim_area = sim_area;
 
     match app.state {
         AppState::Running => {
+            border.render(sim_area, buf);
             render_sim_info(&app.info, info_area, buf);
-            render_sim(&mut app.fluid_sim, sim_area, buf);
+            render_sim(&mut app.fluid_sim, inner_sim_area, buf);
         }
         AppState::Editing => {
+            border
+                .title(" Editor ")
+                .title_style(THEME.tab_text)
+                .title_alignment(Alignment::Center)
+                .render(sim_area, buf);
             render_editor_info(info_area, buf);
+            render_editor(app, inner_sim_area, buf);
         }
         _ => {}
     }
+    inner_sim_area
 }
 
 pub fn set_layout(area: Rect, buf: &mut Buffer) -> [Rect; 2] {

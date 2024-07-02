@@ -76,6 +76,16 @@ impl FluidSim {
         self.move_velocity(delta);
     }
 
+    pub fn set_block(&mut self, x: usize, y: usize) {
+        let index = self.calculate_index(x, y);
+        self.block_grid[index] = true;
+    }
+
+    pub fn unset_block(&mut self, x: usize, y: usize) {
+        let index = self.calculate_index(x, y);
+        self.block_grid[index] = false;
+    }
+
     fn make_horizontal(width: usize, height: usize) -> Vec<f32> {
         let mut values = vec![0.0; width * height];
         for y_index in 0..height {
@@ -108,7 +118,8 @@ impl FluidSim {
         //     grid[x_index * height + 0] = true; // bottom border
         //     grid[x_index * height + height - 1] = true; // top border
         // }
-        let middle = (width / 2) * height + (height / 2);
+        // let middle = (width / 2) * height + (height / 2);
+        let middle = Self::calculate_index_with_height(height, width / 2, height / 2);
         grid[middle + 1] = true;
         grid[middle] = true;
         grid[middle - 1] = true;
@@ -289,7 +300,12 @@ impl FluidSim {
 
     #[inline]
     pub fn calculate_index(&self, x_index: usize, y_index: usize) -> usize {
-        (x_index * self.height) + y_index
+        Self::calculate_index_with_height(self.height, x_index, y_index)
+    }
+
+    #[inline]
+    pub fn calculate_index_with_height(height: usize, x_index: usize, y_index: usize) -> usize {
+        (x_index * height) + y_index
     }
 
     /// calculates the indexes and returns the in the top, right, bottom, left order

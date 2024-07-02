@@ -8,6 +8,7 @@ use std::{io::stdout, panic};
 use app::App;
 use color_eyre::{config::HookBuilder, eyre, Result};
 use crossterm::{
+    event::{DisableMouseCapture, EnableMouseCapture},
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
     ExecutableCommand,
 };
@@ -43,6 +44,7 @@ fn install_error_hooks() -> Result<()> {
 fn init_terminal() -> Result<Terminal<impl Backend>> {
     enable_raw_mode()?;
     stdout().execute(EnterAlternateScreen)?;
+    stdout().execute(EnableMouseCapture)?;
     let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
     terminal.clear()?;
     terminal.hide_cursor()?;
@@ -52,5 +54,6 @@ fn init_terminal() -> Result<Terminal<impl Backend>> {
 fn restore_terminal() -> Result<()> {
     disable_raw_mode()?;
     stdout().execute(LeaveAlternateScreen)?;
+    stdout().execute(DisableMouseCapture)?;
     Ok(())
 }

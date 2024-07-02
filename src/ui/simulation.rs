@@ -61,13 +61,9 @@ fn info_as_text(info: &AppInfo) -> Vec<(Text, Constraint, Text, Constraint)> {
 }
 
 pub fn render_sim(sim: &mut FluidSim, area: Rect, buf: &mut Buffer) {
-    let border = Block::bordered().style(THEME.borders);
-    let sim_area = border.inner(area);
-    border.render(area, buf);
+    resize_sim(sim, area.width, area.height);
 
-    resize_sim(sim, sim_area.width, sim_area.height);
-
-    sim.render(sim_area, buf);
+    sim.render(area, buf);
 }
 
 /// resizes the sim

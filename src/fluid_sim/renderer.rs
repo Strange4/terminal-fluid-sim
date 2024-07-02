@@ -35,6 +35,7 @@ impl Widget for &FluidSim {
                 y_index -= 1;
                 let index = self.calculate_index(x_index, y_index);
 
+                // the top block is the foreground and the background is the bottom
                 render_cell(
                     index,
                     x_pos,
@@ -44,7 +45,6 @@ impl Widget for &FluidSim {
                     pressure_grid,
                     max_pressure,
                     min_pressure,
-                    '▄',
                     buf,
                     true,
                 );
@@ -61,7 +61,6 @@ impl Widget for &FluidSim {
                     pressure_grid,
                     max_pressure,
                     min_pressure,
-                    '▀',
                     buf,
                     false,
                 );
@@ -79,27 +78,19 @@ fn render_cell(
     pressure_grid: &Vec<f32>,
     max_pressure: f32,
     min_pressure: f32,
-    ch: char,
     buf: &mut Buffer,
     as_fg: bool,
 ) {
     let is_block = block_grid[sim_index];
-    let pressure = pressure_grid[sim_index];
-    let smoke = smoke_grid[sim_index];
 
-    let cell = buf.get_mut(x_pos, y_pos).set_char(ch);
+    let cell = buf.get_mut(x_pos, y_pos).set_char('▀');
 
     let color = if is_block {
         THEME.sim_blocks
     } else {
-        let (r, g, b) = get_linear_gradient(pressure, min_pressure, max_pressure);
-        let smoke_reducer = (255.0 * smoke) as u8;
-
-        Color::Rgb(
-            r.saturating_sub(smoke_reducer),
-            g.saturating_sub(smoke_reducer),
-            b.saturating_sub(smoke_reducer),
-        )
+        let smoke = smoke_grid[sim_index];
+        let pressure = pressure_grid[sim_index];
+        get_color(smoke, pressure, min_pressure, max_pressure)
     };
 
     if as_fg {
@@ -133,4 +124,15 @@ fn get_linear_gradient(value: f32, min: f32, max: f32) -> (u8, u8, u8) {
     let (r, g, b) = ((255.0 * r) as u8, (255.0 * g) as u8, (255.0 * b) as u8);
 
     (r, g, b)
+}
+
+fn get_color(smoke: f32, pressure: f32, min_pressure: f32, max_pressure: f32) -> Color {
+    let (r, g, b) = get_linear_gradient(pressure, min_pressure, max_pressure);
+    let smoke_reducer = (255.0 * smoke) as u8;
+
+    Color::Rgb(
+        r.saturating_sub(smoke_reducer),
+        g.saturating_sub(smoke_reducer),
+        b.saturating_sub(smoke_reducer),
+    )
 }
