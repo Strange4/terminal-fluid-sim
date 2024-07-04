@@ -1,9 +1,11 @@
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use color_eyre::Result;
 use ratatui::prelude::*;
 
 use crate::{fluid_sim::simulator::FluidSim, handler::handle_events, ui::render_app};
+
+use super::app_info::AppInfo;
 
 #[derive(Default)]
 pub struct App {
@@ -58,7 +60,7 @@ impl App {
     }
 
     fn update(&mut self, frame: &mut Frame) {
-        self.info.frame_count += 1;
+        self.info.add_frame();
 
         match self.state {
             AppState::Running => {
@@ -91,73 +93,6 @@ impl App {
         let (width, height) = self.fluid_sim.get_size();
         self.info
             .update(sim_duration, render_duration, width, height);
-    }
-}
-
-pub struct AppInfo {
-    rendering_duration: Duration,
-    simulation_step_duration: Duration,
-    last_update: Instant,
-    frame_count: usize,
-    fps: f32,
-    width: usize,
-    height: usize,
-}
-
-impl Default for AppInfo {
-    fn default() -> Self {
-        AppInfo {
-            rendering_duration: Duration::default(),
-            simulation_step_duration: Duration::default(),
-            last_update: Instant::now(),
-            frame_count: 0,
-            fps: 0.0,
-            width: 0,
-            height: 0,
-        }
-    }
-}
-
-impl AppInfo {
-    pub fn get_rendering_time(&self) -> Duration {
-        self.rendering_duration
-    }
-
-    pub fn get_simulation_time(&self) -> Duration {
-        self.simulation_step_duration
-    }
-
-    pub fn get_fps(&self) -> f32 {
-        self.fps
-    }
-
-    pub fn get_size(&self) -> (usize, usize) {
-        (self.width, self.height)
-    }
-
-    fn can_update(&self) -> bool {
-        self.last_update.elapsed() > Duration::from_secs(1)
-    }
-
-    fn calculate_fps(&mut self) {
-        let elapsed = self.last_update.elapsed();
-        self.fps = self.frame_count as f32 / elapsed.as_secs_f32();
-    }
-
-    fn update(
-        &mut self,
-        simulation_time: Duration,
-        rendering_time: Duration,
-        width: usize,
-        height: usize,
-    ) {
-        self.simulation_step_duration = simulation_time;
-        self.rendering_duration = rendering_time;
-        self.calculate_fps();
-        self.last_update = Instant::now();
-        self.frame_count = 0;
-        self.width = width;
-        self.height = height;
     }
 }
 

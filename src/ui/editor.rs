@@ -120,10 +120,8 @@ pub fn editor_area_to_sim_coordinates(
     mouse_coordinates: (u16, u16),
     editor_area: &Rect,
 ) -> (usize, usize) {
-    let pos = (
+    (
         (mouse_coordinates.0 - editor_area.x) as usize,
         2 * (editor_area.height - mouse_coordinates.1) as usize,
-    );
-    // error!("voila! {pos:?}");
-    pos
+    )
 }
