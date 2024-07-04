@@ -3,13 +3,16 @@ use std::time::Duration;
 use crate::{
     app::{App, AppState},
     fluid_sim::simulator::FluidSim,
-    ui::editor::editor_area_to_sim_coordinates,
+    ui::{editor::editor_area_to_sim_coordinates, render_app},
 };
-use color_eyre::Result;
-use crossterm::event::{
-    self, Event, KeyCode, KeyEventKind, MouseButton, MouseEvent, MouseEventKind,
+use color_eyre::eyre::Result;
+use ratatui::{
+    buffer::Buffer,
+    crossterm::event::{
+        self, Event, KeyCode, KeyEventKind, MouseButton, MouseEvent, MouseEventKind,
+    },
+    layout::Rect,
 };
-use ratatui::layout::Rect;
 
 /// Handle any events that have occurred since the last time the app was rendered.
 pub fn handle_events(app: &mut App) -> Result<()> {
@@ -18,25 +21,59 @@ pub fn handle_events(app: &mut App) -> Result<()> {
     // also update the app immediately any time an event occurs)
     let timeout = Duration::from_secs_f32(1.0 / 60.0);
     if event::poll(timeout)? {
-        let event = event::read()?;
-
-        if let Event::Key(key) = event {
-            if key.kind != KeyEventKind::Press {
-                return Ok(());
+        match event::read()? {
+            Event::Key(key) => {
+                if key.kind != KeyEventKind::Press {
+                    return Ok(());
+                }
+                match key.code {
+                    KeyCode::Char('q') | KeyCode::Char('Q') => {
+                        app.state = AppState::Quit;
+                    }
+                    KeyCode::Tab => {
+                        app.fluid_sim.reset_velocity_and_smoke();
+                        app.state = match app.state {
+                            AppState::Running => AppState::Editing,
+                            AppState::Editing => AppState::Running,
+                            _ => AppState::Running,
+                        }
+                    }
+                    _ => {}
+                }
             }
-            if key.code == KeyCode::Char('q') || key.code == KeyCode::Char('Q') {
-                app.state = AppState::Quit;
-            } else if key.code == KeyCode::Tab {
-                app.state = match app.state {
-                    AppState::Running => AppState::Editing,
-                    _ => AppState::Running,
+            Event::Mouse(mouse_event) => handle_mouse_event(mouse_event, app),
+            Event::Resize(width, height) => {
+                let previous_state = app.state.clone();
+                app.state = AppState::Resizing;
+
+                // renders once to see the size of the simulation
+                let area = Rect {
+                    width,
+                    height,
+                    ..Default::default()
                 };
-            };
-        } else if let Event::Mouse(mouse_event) = event {
-            handle_mouse_event(mouse_event, app);
+                let mut empty_buffer = Buffer::empty(area);
+                let new_sim_area = render_app(app, area, &mut empty_buffer);
+
+                resize_sim(&mut app.fluid_sim, new_sim_area.width, new_sim_area.height);
+
+                app.state = previous_state;
+            }
+            _ => {}
         }
     }
     Ok(())
+}
+
+/// resizes the sim
+/// note: the sim height is double the render height to use half blocks
+fn resize_sim(fluid_sim: &mut FluidSim, render_width: u16, render_height: u16) {
+    let (width, height) = (render_width as usize, (render_height * 2) as usize);
+    let (sim_width, sim_height) = fluid_sim.get_size();
+
+    if width != sim_width || height != sim_height {
+        fluid_sim.resize(width, height);
+    }
 }
 
 fn handle_mouse_event(mouse_event: MouseEvent, app: &mut App) {

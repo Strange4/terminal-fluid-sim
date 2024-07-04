@@ -63,6 +63,15 @@ impl FluidSim {
         self.pressure_grid = vec![0.0; height * width];
         self.smoke_grid = Self::make_smoke(width, height);
         self.block_grid = Self::make_block_grid(width, height);
+        self.last_instant = Instant::now();
+    }
+
+    pub fn reset_velocity_and_smoke(&mut self) {
+        self.horizontal_values = Self::make_horizontal(self.width, self.height);
+        self.vertical_values = vec![0.0; self.width * self.height];
+        self.pressure_grid = vec![0.0; self.height * self.width];
+        self.smoke_grid = Self::make_smoke(self.width, self.height);
+        self.last_instant = Instant::now();
     }
 
     pub fn next_step(&mut self) {
@@ -143,7 +152,6 @@ impl FluidSim {
         let pressure_constant = self.density / delta.as_secs_f32();
 
         for _ in 0..ITERATIONS {
-            // avoid borders
             for i in 0..self.width {
                 for j in 0..self.height {
                     let index = self.calculate_index(i, j);
@@ -170,11 +178,8 @@ impl FluidSim {
                     self.horizontal_values[index] -= correction * left_is_block;
                     self.horizontal_values[right] += correction * right_is_block;
 
-                    let new_bottom = correction * bottom_is_block;
-                    let new_top = correction * top_is_block;
-
-                    self.vertical_values[index] -= new_bottom;
-                    self.vertical_values[top] += new_top;
+                    self.vertical_values[index] -= correction * bottom_is_block;
+                    self.vertical_values[top] += correction * top_is_block;
                     self.pressure_grid[index] += pressure_constant * correction;
                 }
             }

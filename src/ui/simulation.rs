@@ -61,20 +61,9 @@ fn info_as_text(info: &AppInfo) -> Vec<(Text, Constraint, Text, Constraint)> {
 }
 
 pub fn render_sim(sim: &mut FluidSim, area: Rect, buf: &mut Buffer) {
-    resize_sim(sim, area.width, area.height);
+    // resize_sim(sim, area.width, area.height);
 
     sim.render(area, buf);
-}
-
-/// resizes the sim
-/// note: the sim height is double the render height to use half blocks
-fn resize_sim(fluid_sim: &mut FluidSim, render_width: u16, render_height: u16) {
-    let (width, height) = (render_width as usize, (render_height * 2) as usize);
-    let (sim_width, sim_height) = fluid_sim.get_size();
-
-    if width != sim_width || height != sim_height {
-        fluid_sim.resize(width, height);
-    }
 }
 
 fn format_duration(duration: Duration) -> String {

@@ -18,7 +18,7 @@ pub struct App {
     pub editor_info: EditorInfo,
 }
 
-#[derive(Default, PartialEq, Eq)]
+#[derive(Default, Clone, PartialEq)]
 pub enum AppState {
     /// The app is running
     #[default]
@@ -26,6 +26,9 @@ pub enum AppState {
 
     /// Editing Mode
     Editing,
+
+    // a non rendering state
+    Resizing,
 
     /// The user has requested the app to quit
     Quit,
@@ -36,6 +39,11 @@ impl App {
     ///
     /// This is the main event loop for the app.
     pub fn run(&mut self, mut terminal: Terminal<impl Backend>) -> Result<()> {
+        let initial_size = terminal.size().unwrap();
+        self.fluid_sim.resize(
+            initial_size.width as usize,
+            (initial_size.height * 2) as usize,
+        );
         while self.is_running() {
             handle_events(self)?;
             terminal.draw(|frame| {
