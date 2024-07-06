@@ -4,8 +4,9 @@ use crate::{
     app::{App, AppState},
     fluid_sim::simulator::FluidSim,
     ui::{editor::editor_area_to_sim_coordinates, render_app},
+    Result,
 };
-use color_eyre::eyre::Result;
+// use color_eyre::eyre::Result;
 use ratatui::{
     buffer::Buffer,
     crossterm::event::{

@@ -1,4 +1,6 @@
+use layout::Flex;
 use ratatui::{layout::Constraint::*, prelude::*, widgets::Block};
+use style::Styled;
 
 use crate::app::{App, AppState};
 
@@ -17,7 +19,7 @@ pub fn render_app(app: &mut App, area: Rect, buf: &mut Buffer) -> Rect {
     match app.state {
         AppState::Running => {
             border.render(sim_area, buf);
-            render_sim_info(&app.info, info_area, buf);
+            render_sim_info(&app.info, &app.config, info_area, buf);
             render_sim(&mut app.fluid_sim, inner_sim_area, buf);
         }
         AppState::Editing => {
@@ -78,4 +80,37 @@ fn controls_layout(area: Rect, buf: &mut Buffer) {
         .centered()
         .style(THEME.controls)
         .render(area, buf);
+}
+
+/// renders a border over the area with a title and returns the inner area
+pub fn render_border_with_title(title: &str, area: Rect, buf: &mut Buffer) -> Rect {
+    let border = Block::bordered().set_style(THEME.borders).title(title);
+    let inner = border.inner(area);
+    border.render(area, buf);
+    inner
+}
+
+pub fn render_left_right_layout<'a>(text: &[(String, String)], area: Rect, buf: &mut Buffer) {
+    let areas = Layout::vertical(vec![Length(1); text.len()]).split(area);
+    text.into_iter()
+        .map(|(info, name)| {
+            let info_length = info.len();
+            let info_text = Text::raw(info);
+            let name_text = Text::raw(name);
+            (
+                info_text,
+                Length(info_length as u16),
+                name_text,
+                Length(name.len() as u16),
+            )
+        })
+        .enumerate()
+        .for_each(|(i, (left, left_constr, right, right_constr))| {
+            let [left_area, right_area] = Layout::horizontal([left_constr, right_constr])
+                .flex(Flex::SpaceBetween)
+                .areas(areas[i]);
+
+            left.render(left_area, buf);
+            right.render(right_area, buf);
+        });
 }

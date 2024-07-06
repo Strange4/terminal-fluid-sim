@@ -1,11 +1,11 @@
 use std::time::Instant;
 
-use color_eyre::Result;
+// use color_eyre::Result;
 use ratatui::prelude::*;
 
-use crate::{fluid_sim::simulator::FluidSim, handler::handle_events, ui::render_app};
+use crate::{fluid_sim::simulator::FluidSim, handler::handle_events, ui::render_app, Result};
 
-use super::app_info::AppInfo;
+use super::{config::AppConfig, info::AppInfo};
 
 #[derive(Default)]
 pub struct App {
@@ -15,9 +15,14 @@ pub struct App {
     /// the actual sim
     pub fluid_sim: FluidSim,
 
+    /// relevant information about the app
     pub info: AppInfo,
 
+    /// information needed by the editor
     pub editor_info: EditorInfo,
+
+    /// configuration settings for the app
+    pub config: AppConfig,
 }
 
 #[derive(Default, Clone, PartialEq)]

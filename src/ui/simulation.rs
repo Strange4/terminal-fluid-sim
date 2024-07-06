@@ -1,24 +1,23 @@
-use ratatui::{prelude::*, widgets::Block};
+use ratatui::layout::Constraint::*;
+use ratatui::prelude::*;
 
-use crate::{app::AppInfo, fluid_sim::simulator::FluidSim};
+use crate::{
+    app::{AppConfig, AppInfo},
+    fluid_sim::simulator::FluidSim,
+};
 
-use super::theme::THEME;
+use super::render_border_with_title;
 
-pub fn render_sim_info(info: &AppInfo, area: Rect, buf: &mut Buffer) {
-    // setup the info
-    let info_border = Block::bordered()
-        .title("Sim Info")
-        .title_style(THEME.text)
-        .style(THEME.borders);
-    let inner_info_area = info_border.inner(area);
-    info_border.render(area, buf);
+pub fn render_sim_info(info: &AppInfo, config: &AppConfig, area: Rect, buf: &mut Buffer) {
+    let [up, down] = Layout::vertical([Fill(1), Fill(1)]).areas(area);
 
-    // rendering the rest of the info
-    info.render(inner_info_area, buf);
+    let info_area = render_border_with_title("Sim Info", up, buf);
+    let config_area = render_border_with_title("Settings", down, buf);
+
+    info.render(info_area, buf);
+    config.render(config_area, buf);
 }
 
 pub fn render_sim(sim: &mut FluidSim, area: Rect, buf: &mut Buffer) {
-    // resize_sim(sim, area.width, area.height);
-
     sim.render(area, buf);
 }

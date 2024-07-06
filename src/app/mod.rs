@@ -1,5 +1,7 @@
 mod app;
-mod app_info;
+mod config;
+mod info;
 
 pub use app::*;
-pub use app_info::AppInfo;
+pub use config::AppConfig;
+pub use info::AppInfo;
