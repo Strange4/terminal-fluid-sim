@@ -8,6 +8,7 @@ pub struct Theme {
     pub controls: Style,
     pub sim_blocks: Color,
     pub tab_text: Style,
+    pub highlight_config: Style,
 }
 
 pub const THEME: Theme = Theme {
@@ -18,4 +19,5 @@ pub const THEME: Theme = Theme {
     controls: Style::new().bg(Color::White).fg(Color::Black),
     sim_blocks: Color::White,
     tab_text: Style::new().fg(Color::White),
+    highlight_config: Style::new().fg(Color::Black).bg(Color::White),
 };

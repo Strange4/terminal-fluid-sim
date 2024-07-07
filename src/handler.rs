@@ -27,43 +27,59 @@ pub fn handle_events(app: &mut App) -> Result<()> {
                 if key.kind != KeyEventKind::Press {
                     return Ok(());
                 }
-                match key.code {
-                    KeyCode::Char('q') | KeyCode::Char('Q') => {
-                        app.state = AppState::Quit;
-                    }
-                    KeyCode::Tab => {
-                        app.fluid_sim.reset_velocity_and_smoke();
-                        app.state = match app.state {
-                            AppState::Running => AppState::Editing,
-                            AppState::Editing => AppState::Running,
-                            _ => AppState::Running,
-                        }
-                    }
-                    _ => {}
-                }
+                handle_key(app, key.code);
             }
             Event::Mouse(mouse_event) => handle_mouse_event(mouse_event, app),
-            Event::Resize(width, height) => {
-                let previous_state = app.state.clone();
-                app.state = AppState::Resizing;
-
-                // renders once to see the size of the simulation
-                let area = Rect {
-                    width,
-                    height,
-                    ..Default::default()
-                };
-                let mut empty_buffer = Buffer::empty(area);
-                let new_sim_area = render_app(app, area, &mut empty_buffer);
-
-                resize_sim(&mut app.fluid_sim, new_sim_area.width, new_sim_area.height);
-
-                app.state = previous_state;
-            }
+            Event::Resize(width, height) => handle_resize(app, width, height),
             _ => {}
         }
     }
     Ok(())
+}
+
+fn handle_key(app: &mut App, code: KeyCode) {
+    match code {
+        KeyCode::Char('q') | KeyCode::Char('Q') => {
+            app.state = AppState::Quit;
+        }
+        KeyCode::Tab => {
+            app.fluid_sim.reset_velocity_and_smoke();
+            app.state = match app.state {
+                AppState::Running => AppState::Editing,
+                AppState::Editing => AppState::Running,
+                _ => AppState::Running,
+            }
+        }
+        _ => {}
+    }
+
+    if app.state == AppState::Running {
+        match code {
+            KeyCode::Down => app.config.down_select(),
+            KeyCode::Up => app.config.up_select(),
+            KeyCode::Left => app.config.reduce_selection(),
+            KeyCode::Right => app.config.increase_selection(),
+            _ => {}
+        }
+    }
+}
+
+fn handle_resize(app: &mut App, width: u16, height: u16) {
+    let previous_state = app.state.clone();
+    app.state = AppState::Resizing;
+
+    // renders once to see the size of the simulation
+    let area = Rect {
+        width,
+        height,
+        ..Default::default()
+    };
+    let mut empty_buffer = Buffer::empty(area);
+    let new_sim_area = render_app(app, area, &mut empty_buffer);
+
+    resize_sim(&mut app.fluid_sim, new_sim_area.width, new_sim_area.height);
+
+    app.state = previous_state;
 }
 
 /// resizes the sim

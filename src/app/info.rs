@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 use ratatui::prelude::{Buffer, Rect};
 use ratatui::widgets::Widget;
 
-use crate::ui::render_left_right_layout;
+use crate::ui::render_left_right_text;
 
 pub struct AppInfo {
     rendering_duration: Duration,
@@ -76,7 +76,7 @@ impl Widget for &AppInfo {
             (format!("{:.1} fps", self.fps), "Frames".to_string()),
             (format!("x: {width}, y: {height}"), "Grid Size".to_string()),
         ];
-        render_left_right_layout(&infos, area, buf);
+        render_left_right_text(&infos, area, buf);
     }
 }
 

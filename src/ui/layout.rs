@@ -19,7 +19,7 @@ pub fn render_app(app: &mut App, area: Rect, buf: &mut Buffer) -> Rect {
     match app.state {
         AppState::Running => {
             border.render(sim_area, buf);
-            render_sim_info(&app.info, &app.config, info_area, buf);
+            render_sim_info(&app.info, &mut app.config, info_area, buf);
             render_sim(&mut app.fluid_sim, inner_sim_area, buf);
         }
         AppState::Editing => {
@@ -90,17 +90,14 @@ pub fn render_border_with_title(title: &str, area: Rect, buf: &mut Buffer) -> Re
     inner
 }
 
-pub fn render_left_right_layout<'a>(text: &[(String, String)], area: Rect, buf: &mut Buffer) {
+pub fn render_left_right_text<'a>(text: &[(String, String)], area: Rect, buf: &mut Buffer) {
     let areas = Layout::vertical(vec![Length(1); text.len()]).split(area);
     text.into_iter()
         .map(|(info, name)| {
-            let info_length = info.len();
-            let info_text = Text::raw(info);
-            let name_text = Text::raw(name);
             (
-                info_text,
-                Length(info_length as u16),
-                name_text,
+                Span::raw(info),
+                Length(info.len() as u16),
+                Span::raw(name),
                 Length(name.len() as u16),
             )
         })

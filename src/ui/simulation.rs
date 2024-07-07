@@ -8,7 +8,7 @@ use crate::{
 
 use super::render_border_with_title;
 
-pub fn render_sim_info(info: &AppInfo, config: &AppConfig, area: Rect, buf: &mut Buffer) {
+pub fn render_sim_info(info: &AppInfo, config: &mut AppConfig, area: Rect, buf: &mut Buffer) {
     let [up, down] = Layout::vertical([Fill(1), Fill(1)]).areas(area);
 
     let info_area = render_border_with_title("Sim Info", up, buf);
