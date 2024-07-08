@@ -10,3 +10,10 @@ ratatui = "0.27"
 rayon = "1.10.0"
 log4rs = "1.3.0"
 log = "0.4"
+
+[dev-dependencies]
+criterion = "0.5.1"
+
+[[bench]]
+name = "sim_bench"
+harness = false

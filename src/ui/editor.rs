@@ -5,7 +5,9 @@ use ratatui::{
     widgets::{Block, Paragraph, Widget, Wrap},
 };
 
-use crate::{app::App, fluid_sim::simulator::FluidSim};
+use terminal_fluid_sim::FluidSim;
+
+use crate::app::App;
 
 use super::THEME;
 

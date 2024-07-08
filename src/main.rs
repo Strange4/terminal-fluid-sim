@@ -1,5 +1,4 @@
 mod app;
-mod fluid_sim;
 mod handler;
 mod tui;
 mod ui;

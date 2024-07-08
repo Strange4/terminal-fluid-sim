@@ -1,6 +1,6 @@
 pub mod editor;
 mod layout;
-mod simulation;
+mod sim_renderer;
 mod theme;
 
 pub use layout::*;

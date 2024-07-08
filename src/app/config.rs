@@ -74,6 +74,26 @@ impl AppConfig {
         self.density -= 25.0;
     }
 
+    #[inline]
+    pub fn get_gravity(&self) -> f32 {
+        self.gravity
+    }
+
+    #[inline]
+    pub fn get_wind_speed(&self) -> f32 {
+        self.wind_speed
+    }
+
+    #[inline]
+    pub fn get_smoke_size(&self) -> f32 {
+        self.smoke_size
+    }
+
+    #[inline]
+    pub fn get_density(&self) -> f32 {
+        self.density
+    }
+
     pub fn reduce_selection(&mut self) {
         if let Some(selection) = self.current_selection.selected() {
             match selection {

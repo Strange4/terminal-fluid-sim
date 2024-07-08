@@ -2,7 +2,6 @@ use std::time::Duration;
 
 use crate::{
     app::{App, AppState},
-    fluid_sim::simulator::FluidSim,
     ui::{editor::editor_area_to_sim_coordinates, render_app},
     Result,
 };
@@ -14,6 +13,7 @@ use ratatui::{
     },
     layout::Rect,
 };
+use terminal_fluid_sim::FluidSim;
 
 /// Handle any events that have occurred since the last time the app was rendered.
 pub fn handle_events(app: &mut App) -> Result<()> {
@@ -77,19 +77,19 @@ fn handle_resize(app: &mut App, width: u16, height: u16) {
     let mut empty_buffer = Buffer::empty(area);
     let new_sim_area = render_app(app, area, &mut empty_buffer);
 
-    resize_sim(&mut app.fluid_sim, new_sim_area.width, new_sim_area.height);
+    resize_sim(app, new_sim_area.width, new_sim_area.height);
 
     app.state = previous_state;
 }
 
 /// resizes the sim
 /// note: the sim height is double the render height to use half blocks
-fn resize_sim(fluid_sim: &mut FluidSim, render_width: u16, render_height: u16) {
+fn resize_sim(app: &mut App, render_width: u16, render_height: u16) {
     let (width, height) = (render_width as usize, (render_height * 2) as usize);
-    let (sim_width, sim_height) = fluid_sim.get_size();
+    let (sim_width, sim_height) = app.fluid_sim.get_size();
 
     if width != sim_width || height != sim_height {
-        fluid_sim.resize(width, height);
+        app.fluid_sim.resize(width, height);
     }
 }
 

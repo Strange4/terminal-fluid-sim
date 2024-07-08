@@ -6,7 +6,7 @@ use crate::app::{App, AppState};
 
 use super::{
     editor::{render_editor, render_editor_info},
-    simulation::{render_sim, render_sim_info},
+    sim_renderer::{render_sim, render_sim_info},
     theme::THEME,
 };
 
