@@ -9,6 +9,7 @@ use crate::{handler::handle_events, ui::render_app, Result};
 
 use super::{config::AppConfig, info::AppInfo};
 
+#[derive(Default)]
 pub struct App {
     /// The current state of the app (running or quit)
     pub state: AppState,
@@ -40,19 +41,6 @@ pub enum AppState {
 
     /// The user has requested the app to quit
     Quit,
-}
-
-impl Default for App {
-    fn default() -> Self {
-        let config = AppConfig::default();
-        Self {
-            state: Default::default(),
-            fluid_sim: FluidSim::new(10, 10, 1000.0),
-            info: Default::default(),
-            editor_info: Default::default(),
-            config,
-        }
-    }
 }
 
 impl App {

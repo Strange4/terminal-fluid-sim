@@ -4,94 +4,80 @@ use ratatui::widgets::{HighlightSpacing, Row, StatefulWidget, Table, TableState,
 
 use crate::ui::THEME;
 
+use terminal_fluid_sim::SimConfig;
+
+#[derive(Default)]
 pub struct AppConfig {
-    /// gravity of the simulation, set to 0 for no gravity
-    gravity: f32,
-
-    /// wind speed, must be above 0
-    wind_speed: f32,
-
-    /// some height percentage of the screen [0,1] inclusive
-    smoke_size: f32,
-
-    /// density of the sim
-    density: f32,
+    /// the configuration of the sim
+    config: SimConfig,
 
     /// the current selection to be changed
     current_selection: TableState,
 }
 
-impl Default for AppConfig {
-    fn default() -> Self {
-        AppConfig {
-            gravity: 0.0,
-            wind_speed: 50.0,
-            smoke_size: 0.25,
-            density: 1000.0,
-            current_selection: TableState::default(),
-        }
-    }
-}
-
 impl AppConfig {
     #[inline]
     fn add_gravity(&mut self) {
-        self.gravity += 0.1;
+        self.config.gravity += 0.1;
     }
 
     #[inline]
     fn reduce_gravity(&mut self) {
-        self.gravity -= 0.1;
+        self.config.gravity -= 0.1;
     }
 
     #[inline]
     fn add_wind_speed(&mut self) {
-        self.wind_speed += 1.0;
+        self.config.wind_speed += 1.0;
     }
 
     #[inline]
     fn reduce_wind_speed(&mut self) {
-        self.wind_speed = (self.wind_speed - 1.0).max(0.0);
+        self.config.wind_speed = (self.config.wind_speed - 1.0).max(0.0);
     }
 
     #[inline]
     fn add_smoke_size(&mut self) {
-        self.smoke_size = (self.smoke_size + 0.05).min(1.0);
+        self.config.smoke_size = (self.config.smoke_size + 0.05).min(1.0);
     }
 
     #[inline]
     fn reduce_smoke_size(&mut self) {
-        self.smoke_size = (self.smoke_size - 0.05).max(0.0);
+        self.config.smoke_size = (self.config.smoke_size - 0.05).max(0.0);
     }
 
     #[inline]
     fn add_density(&mut self) {
-        self.density += 25.0;
+        self.config.density += 25.0;
     }
 
     #[inline]
     fn reduce_density(&mut self) {
-        self.density -= 25.0;
+        self.config.density -= 25.0;
     }
 
     #[inline]
     pub fn get_gravity(&self) -> f32 {
-        self.gravity
+        self.config.gravity
     }
 
     #[inline]
     pub fn get_wind_speed(&self) -> f32 {
-        self.wind_speed
+        self.config.wind_speed
     }
 
     #[inline]
     pub fn get_smoke_size(&self) -> f32 {
-        self.smoke_size
+        self.config.smoke_size
     }
 
     #[inline]
     pub fn get_density(&self) -> f32 {
-        self.density
+        self.config.density
+    }
+
+    pub fn get_config(&self) -> SimConfig {
+        self.config.clone()
     }
 
     pub fn reduce_selection(&mut self) {
@@ -151,10 +137,10 @@ impl AppConfig {
 
 impl Widget for &mut AppConfig {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let gravity = self.gravity;
-        let wind_speed = self.wind_speed;
-        let smoke_size = self.smoke_size * 100.0; // this is a precentage
-        let density = self.density;
+        let gravity = self.config.gravity;
+        let wind_speed = self.config.wind_speed;
+        let smoke_size = self.config.smoke_size * 100.0; // this is a precentage
+        let density = self.config.density;
 
         let rows = [
             Row::new(vec![format!("{gravity:.1} m/s²"), "Gravity".to_string()]),

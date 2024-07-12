@@ -35,7 +35,7 @@ impl AppInfo {
     }
 
     pub(super) fn can_update(&self) -> bool {
-        self.last_update.elapsed() > Duration::from_secs(1)
+        self.last_update.elapsed() > Duration::from_secs_f32(0.5)
     }
 
     fn calculate_fps(&mut self) {

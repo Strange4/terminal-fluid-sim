@@ -11,7 +11,7 @@ use super::{
 };
 
 pub fn render_app(app: &mut App, area: Rect, buf: &mut Buffer) -> Rect {
-    let [info_area, sim_area] = set_layout(area, buf);
+    let [info_area, sim_area] = set_layout(&app.state, area, buf);
 
     let border = Block::bordered().style(THEME.borders);
     let inner_sim_area = border.inner(sim_area);
@@ -36,7 +36,7 @@ pub fn render_app(app: &mut App, area: Rect, buf: &mut Buffer) -> Rect {
     inner_sim_area
 }
 
-pub fn set_layout(area: Rect, buf: &mut Buffer) -> [Rect; 2] {
+fn set_layout(state: &AppState, area: Rect, buf: &mut Buffer) -> [Rect; 2] {
     // make the bottom controls have height of 1 and the fill the rest
     let [main_area, controls_area] = Layout::vertical([Fill(1), Length(1)]).areas(area);
 
@@ -47,7 +47,7 @@ pub fn set_layout(area: Rect, buf: &mut Buffer) -> [Rect; 2] {
 
     let info_area = render_title(left_area, buf);
 
-    controls_layout(controls_area, buf);
+    controls_layout(state, controls_area, buf);
 
     [info_area, sim_area]
 }
@@ -68,17 +68,39 @@ fn render_title(area: Rect, buf: &mut Buffer) -> Rect {
     info_area
 }
 
-fn controls_layout(area: Rect, buf: &mut Buffer) {
-    let controls = [("q", "quit")];
+fn controls_layout(state: &AppState, area: Rect, buf: &mut Buffer) {
+    let mut controls = vec![("q", "quit")];
+
+    let mut additional = match state {
+        AppState::Running => vec![
+            ("tab", "switch to editor"),
+            ("↑", "up selection"),
+            ("←", "reduce value"),
+            ("→", "increase value"),
+            ("↓", "down selection"),
+        ],
+        AppState::Editing => vec![
+            ("tab", "switch to simulation"),
+            ("left click", "add block"),
+            ("right click", "remove block"),
+        ],
+        _ => Vec::with_capacity(0),
+    };
+    controls.append(&mut additional);
 
     let spans: Vec<_> = controls
-        .iter()
-        .map(|(control, desc)| Span::raw(format!(" {control} / {desc} ")))
+        .into_iter()
+        .flat_map(|(control, desc)| {
+            [
+                Span::raw(" "),
+                Span::raw(format!(" {control} / {desc} ")).style(THEME.controls),
+            ]
+        })
         .collect();
 
     Line::from(spans)
+        .style(THEME.background)
         .centered()
-        .style(THEME.controls)
         .render(area, buf);
 }
 
@@ -90,9 +112,9 @@ pub fn render_border_with_title(title: &str, area: Rect, buf: &mut Buffer) -> Re
     inner
 }
 
-pub fn render_left_right_text<'a>(text: &[(String, String)], area: Rect, buf: &mut Buffer) {
+pub fn render_left_right_text(text: &[(String, String)], area: Rect, buf: &mut Buffer) {
     let areas = Layout::vertical(vec![Length(1); text.len()]).split(area);
-    text.into_iter()
+    text.iter()
         .map(|(info, name)| {
             (
                 Span::raw(info),

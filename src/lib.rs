@@ -1,3 +1,3 @@
 mod simulator;
 
-pub use simulator::FluidSim;
+pub use simulator::*;

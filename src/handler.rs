@@ -43,7 +43,7 @@ fn handle_key(app: &mut App, code: KeyCode) {
             app.state = AppState::Quit;
         }
         KeyCode::Tab => {
-            app.fluid_sim.reset_velocity_and_smoke();
+            app.fluid_sim.restart_sim();
             app.state = match app.state {
                 AppState::Running => AppState::Editing,
                 AppState::Editing => AppState::Running,
@@ -55,10 +55,16 @@ fn handle_key(app: &mut App, code: KeyCode) {
 
     if app.state == AppState::Running {
         match code {
-            KeyCode::Down => app.config.down_select(),
             KeyCode::Up => app.config.up_select(),
-            KeyCode::Left => app.config.reduce_selection(),
-            KeyCode::Right => app.config.increase_selection(),
+            KeyCode::Down => app.config.down_select(),
+            KeyCode::Left | KeyCode::Right => {
+                match code {
+                    KeyCode::Left => app.config.reduce_selection(),
+                    KeyCode::Right => app.config.increase_selection(),
+                    _ => {}
+                }
+                app.fluid_sim.set_config(app.config.get_config());
+            }
             _ => {}
         }
     }

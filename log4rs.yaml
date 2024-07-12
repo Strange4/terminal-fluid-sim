@@ -1,8 +1,0 @@
-appenders:
-  file:
-    kind: file
-    path: "log.txt"
-
-root:
-  appenders:
-  - file
