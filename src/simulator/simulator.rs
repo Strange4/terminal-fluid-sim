@@ -136,7 +136,7 @@ impl FluidSim {
 
     fn add_gravity(&mut self, delta: Duration) {
         self.vertical_values
-            .par_iter_mut()
+            .iter_mut()
             .enumerate()
             .for_each(|(index, vertical_value)| {
                 if self.block_grid[index]
