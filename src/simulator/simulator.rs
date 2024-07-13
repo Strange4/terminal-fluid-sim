@@ -1,4 +1,3 @@
-use rayon::prelude::*;
 use std::time::{Duration, Instant};
 
 use crate::SimConfig;
@@ -195,48 +194,51 @@ impl FluidSim {
         let mut new_smoke = self.smoke_grid.clone();
 
         let half_size = 0.5;
-        (&mut new_horizontal, &mut new_vertical, &mut new_smoke)
-            .into_par_iter()
+
+        for (index, (horizontal_value, (vertical_value, smoke_value))) in new_horizontal
+            .iter_mut()
+            .zip(new_vertical.iter_mut().zip(new_smoke.iter_mut()))
             .enumerate()
-            .for_each(|(index, (horizontal_value, vertical_value, smoke_value))| {
-                if self.block_grid[index] || self.index_is_border(index) {
-                    return;
-                }
-                // for horizontal
-                let (i, j) = self.pos_from_index(index);
-                let mut x_pos = i as f32;
-                let mut y_pos = j as f32 + half_size;
-                let average_vertical_value = self.avg_vertical(i, j);
+        {
+            if self.block_grid[index] || self.index_is_border(index) {
+                continue;
+            }
+            // for horizontal
+            let (i, j) = self.pos_from_index(index);
+            let mut x_pos = i as f32;
+            let mut y_pos = j as f32 + half_size;
+            let average_vertical_value = self.avg_vertical(i, j);
 
-                x_pos -= *horizontal_value * delta.as_secs_f32();
-                y_pos -= average_vertical_value * delta.as_secs_f32();
-                *horizontal_value = self.sample_vector(x_pos, y_pos, FieldType::Horizontal);
+            x_pos -= *horizontal_value * delta.as_secs_f32();
+            y_pos -= average_vertical_value * delta.as_secs_f32();
+            *horizontal_value = self.sample_vector(x_pos, y_pos, FieldType::Horizontal);
 
-                // for vertical component
-                x_pos = i as f32 + half_size;
-                y_pos = j as f32;
+            // for vertical component
+            x_pos = i as f32 + half_size;
+            y_pos = j as f32;
 
-                let average_horizontal_value = self.avg_horizontal(i, j);
+            let average_horizontal_value = self.avg_horizontal(i, j);
 
-                x_pos -= average_horizontal_value * delta.as_secs_f32();
-                y_pos -= *vertical_value * delta.as_secs_f32();
+            x_pos -= average_horizontal_value * delta.as_secs_f32();
+            y_pos -= *vertical_value * delta.as_secs_f32();
 
-                *vertical_value = self.sample_vector(x_pos, y_pos, FieldType::Vertical);
+            *vertical_value = self.sample_vector(x_pos, y_pos, FieldType::Vertical);
 
-                // for smoke
-                if self.calculate_index(i + 1, j) < self.horizontal_speeds.len() {
-                    let cell_vertical_value = (self.vertical_values[index]
-                        + self.vertical_values[self.calculate_index(i, j + 1)])
-                        * 0.5;
-                    let cell_horizontal_value = (self.horizontal_speeds[index]
-                        + self.horizontal_speeds[self.calculate_index(i + 1, j)])
-                        * 0.5;
+            // for smoke
+            if self.calculate_index(i + 1, j) < self.horizontal_speeds.len() {
+                let cell_vertical_value = (self.vertical_values[index]
+                    + self.vertical_values[self.calculate_index(i, j + 1)])
+                    * 0.5;
+                let cell_horizontal_value = (self.horizontal_speeds[index]
+                    + self.horizontal_speeds[self.calculate_index(i + 1, j)])
+                    * 0.5;
 
-                    x_pos = i as f32 + half_size - cell_horizontal_value * delta.as_secs_f32();
-                    y_pos = j as f32 + half_size - cell_vertical_value * delta.as_secs_f32();
-                    *smoke_value = self.sample_vector(x_pos, y_pos, FieldType::Smoke);
-                }
-            });
+                x_pos = i as f32 + half_size - cell_horizontal_value * delta.as_secs_f32();
+                y_pos = j as f32 + half_size - cell_vertical_value * delta.as_secs_f32();
+                *smoke_value = self.sample_vector(x_pos, y_pos, FieldType::Smoke);
+            }
+        }
+
         self.horizontal_speeds = new_horizontal;
         self.vertical_values = new_vertical;
         self.smoke_grid = new_smoke;
