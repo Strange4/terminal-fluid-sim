@@ -342,16 +342,11 @@ impl FluidSim {
     /// calculates the indexes and returns the in the top, right, bottom, left order
     fn indexes_around(&self, x_index: usize, y_index: usize) -> [usize; 4] {
         [
-            (x_index, y_index + 1),
-            (x_index + 1, y_index),
-            (x_index, y_index - 1),
-            (x_index - 1, y_index),
+            self.calculate_index(x_index, y_index + 1),
+            self.calculate_index(x_index + 1, y_index),
+            self.calculate_index(x_index, y_index - 1),
+            self.calculate_index(x_index - 1, y_index),
         ]
-        .into_iter()
-        .map(|(x, y)| self.calculate_index(x, y))
-        .collect::<Vec<usize>>()
-        .try_into()
-        .unwrap()
     }
 
     #[inline]
